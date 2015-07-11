@@ -695,10 +695,6 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		//mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
                   update_init_code(ctrl, &lcd_data, mdss_dsi_panel_cmds_send);
 
-#ifdef CONFIG_YULONG_COLOR
-	color_enhancement_impl_apply();
-#endif
-
 	mdss_livedisplay_update(ctrl, MODE_UPDATE_ALL);
 
 end:
