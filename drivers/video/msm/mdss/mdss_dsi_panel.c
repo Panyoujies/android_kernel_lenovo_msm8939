@@ -695,8 +695,6 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		//mdss_dsi_panel_cmds_send(ctrl, &ctrl->on_cmds);
                   update_init_code(ctrl, &lcd_data, mdss_dsi_panel_cmds_send);
 
-	mdss_livedisplay_update(ctrl, MODE_UPDATE_ALL);
-
 end:
 	pinfo->blank_state = MDSS_PANEL_BLANK_UNBLANK;
          printk("%s Done. cost %lu ms, LCD_ID=%d\n", __func__, jiffies_to_msecs(jiffies)-starttimejiffies, LCD_ID);
