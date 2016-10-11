@@ -250,6 +250,12 @@
 #define NUM_KPDBL_LEDS			4
 #define KPDBL_MASTER_BIT_INDEX		0
 
+struct qpnp_led_data *led_kpd;
+static int pwm_gpio_blink = 0;
+static int pwm_gpio_on = 1;
+static int led_on = 0;
+
+static void qpnp_led_set(struct led_classdev *led_cdev,enum led_brightness value);
 /**
  * enum qpnp_leds - QPNP supported led ids
  * @QPNP_ID_WLED - White led backlight
@@ -264,6 +270,8 @@ enum qpnp_leds {
 	QPNP_ID_LED_MPP,
 	QPNP_ID_KPDBL,
 	QPNP_ID_LED_GPIO,
+	QPNP_ID_LED_CHG,
+	QPNP_ID_LED_PWM_GPIO,
 	QPNP_ID_MAX,
 };
 
@@ -519,6 +527,20 @@ struct gpio_config_data {
 };
 
 /**
+ *  pwm_gpio_config_data - chargering led configuration data
+ */
+struct pwm_gpio_config_data {
+	bool	enable;
+};
+
+/**
+ *  chg_config_data - chargering led configuration data
+ */
+struct chg_config_data {
+	bool	enable;
+};
+
+/**
  * struct qpnp_led_data - internal led data structure
  * @led_classdev - led class device
  * @delayed_work - delayed work for turning off the LED
@@ -550,6 +572,8 @@ struct qpnp_led_data {
 	struct rgb_config_data	*rgb_cfg;
 	struct mpp_config_data	*mpp_cfg;
 	struct gpio_config_data	*gpio_cfg;
+	struct chg_config_data	*chg_cfg;	/*Added charging led data.*/
+	struct pwm_gpio_config_data	*pwm_gpio_cfg;	/*Added pwm_gpio led data.*/
 	int			max_current;
 	bool			default_on;
 	bool                    in_order_command_processing;
@@ -628,7 +652,123 @@ static int qpnp_wled_sync(struct qpnp_led_data *led)
 	}
 	return 0;
 }
+ 
+/*
+ *qpnp_pwm_gpio_set:Set pwm gpio led on/off.
+ *Hardware info:
+ *GPIO3 mode ctrl w:0x18 DGT_OUTPUT_DTEST1
+ *GPIO3 pull none w:0x05 PULL_NONE
+ *GPIO3 EN_DIS w:0x80 DISABLE
+ *PWM PWM_6BIT_32k
+ *BLINK 0x1BC45 00
+ *ALWAYS_ON 0x1BC45 01
+ *TURN_OFF 0x1BC26 00
+ */
+static int qpnp_pwm_gpio_set(struct qpnp_led_data *led)
+{
+	int rc;
+	u8 val;
+	printk("pwm gpio led set value = %d,lcd on/off = %d, blink = %d.\n",led->cdev.brightness, pwm_gpio_on, pwm_gpio_blink);
+	
+	if(led->cdev.brightness && pwm_gpio_on){
+		led_on = 1;
+			val = 0xff;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+				1, 0xbc44,
+				&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc45,
+					&val, 1);
+			val = 0x80;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc46,
+					&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc47,
+					&val, 1);	
+	} else	if(pwm_gpio_on){
+		led_on = 0;
+			val = 0x00;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc45,
+					&val, 1);
+			val = 0x00;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+				1, 0xbc44,
+				&val, 1);
+			val = 0x00;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc46,
+					&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc47,
+					&val, 1);	
+	}else if(pwm_gpio_blink){
+			val = 0x66;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+				1, 0xbc44,
+				&val, 1);
+			val = 0x00;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc45,
+					&val, 1);
+			val = 0x80;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc46,
+					&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc47,
+					&val, 1);	
+	} else{
+			led_on = 0;
+			val = 0x00;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+				1, 0xbc44,
+				&val, 1);
+			val = 0x00;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc45,
+					&val, 1);
+			val = 0x00;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc46,
+					&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+					1, 0xbc47,
+					&val, 1);	
+	}
 
+	return rc;
+
+}
+/*
+ *qpnp_chg_set:Set charging led on/off.
+ *Hardware info:
+ *WLED_SET_ILIM_CODE 0x01
+ *WLED_SYNC_RESET_VAL 0x00
+ *CHG_LED_SINK address is 0x104d
+ *Register name LBC_CHGR_LED
+ */
+static int qpnp_chg_set(struct qpnp_led_data *led)
+{
+	int rc;
+	u8 val;
+	printk("chargering led set value = %d\n",led->cdev.brightness);
+	if(led->cdev.brightness)
+		val = WLED_SET_ILIM_CODE;
+	else
+		val = WLED_SYNC_RESET_VAL;
+	rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+			led->spmi_dev->sid, WLED_OVP_CFG_REG(led->base),
+			&val, 1);
+	return rc;
+
+}
 static int qpnp_wled_set(struct qpnp_led_data *led)
 {
 	int rc, duty, level, tries = 0;
@@ -1107,6 +1247,133 @@ err_gpio_reg_write:
 	return rc;
 }
 
+/*gpio led kpdbl control */
+#if 0
+int qpnp_kpdbl_enable(bool onoff)
+{
+	int rc;
+	u8 val;
+    printk("%s,onoff is %d\n",__func__,onoff);
+	if (onoff) {
+		val = 0x11;
+		rc = qpnp_led_masked_write(led_kpd,
+			 LED_GPIO_MODE_CTRL(led_kpd->base),
+			 LED_GPIO_MODE_MASK,
+			 val);
+		if (rc) {
+			dev_err(&led_kpd->spmi_dev->dev,
+					"Failed to write led mode reg\n");
+		}
+		/*
+		rc = qpnp_led_masked_write(led_kpd,
+			 LED_GPIO_EN_CTRL(led_kpd->base),
+			 LED_GPIO_EN_MASK,
+			 LED_GPIO_EN_ENABLE);
+			 
+		if (rc) {
+			dev_err(&led_kpd->spmi_dev->dev,
+					"Failed to write led enable reg\n");
+		}
+		*/
+
+	} else {
+		rc = qpnp_led_masked_write(led_kpd,
+				LED_GPIO_MODE_CTRL(led_kpd->base),
+				LED_GPIO_MODE_MASK,
+				LED_GPIO_MODE_DISABLE);
+				
+		if (rc) {
+			dev_err(&led_kpd->spmi_dev->dev,
+					"Failed to write led mode reg\n");
+		}
+		/*
+		rc = qpnp_led_masked_write(led_kpd,
+				LED_GPIO_EN_CTRL(led_kpd->base),
+				LED_GPIO_EN_MASK,
+				LED_GPIO_EN_DISABLE);
+				
+		if (rc) {
+			dev_err(&led_kpd->spmi_dev->dev,
+					"Failed to write led enable reg\n");
+		}
+		*/
+
+	}
+	return rc;
+}
+#endif
+/*Set pwm gpio led follow lcd backlight
+ * It's called by lcd backlight funtion.
+ *if (resume && led on)
+ *		set led on
+ *	else if(suspend && blink)
+ *			set led blink
+ *		else 
+ *		set led off
+ * */
+int qpnp_kpdbl_enable(bool onoff)
+{
+	int rc;
+	u8 val;
+	pwm_gpio_on = onoff;
+	printk("%s,onoff is %d,blink = %d.\n",__func__,onoff, pwm_gpio_blink);
+	if (onoff && led_on) {
+			val = 0xff;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc44,
+					&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc45,
+					&val, 1);
+			val = 0x80;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc46,
+					&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc47,
+					&val, 1);	
+
+	} else if(pwm_gpio_blink && (!pwm_gpio_on)){
+			val = 0x66;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc44,
+					&val, 1);
+			val = 0x00;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc45,
+					&val, 1);
+			val = 0x80;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc46,
+					&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc47,
+					&val, 1);	
+
+	}else {
+			val = 0x00;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc44,
+					&val, 1);
+			val = 0x00;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc45,
+					&val, 1);
+			val = 0x00;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc46,
+					&val, 1);
+			val = 0x01;
+			rc = spmi_ext_register_writel(led_kpd->spmi_dev->ctrl,
+					1, 0xbc47,
+					&val, 1);	
+
+	}
+	return rc;
+}
 static int qpnp_flash_regulator_operate(struct qpnp_led_data *led, bool on)
 {
 	int rc, i;
@@ -1868,6 +2135,20 @@ static void __qpnp_led_work(struct qpnp_led_data *led,
 			dev_err(&led->spmi_dev->dev,
 				"KPDBL set brightness failed (%d)\n", rc);
 		break;
+/*Added charging led */
+	case QPNP_ID_LED_CHG:
+		rc = qpnp_chg_set(led);
+		if (rc)
+			dev_err(&led->spmi_dev->dev,
+				"chg initialize failed(%d)\n", rc);
+		break;
+/*Added pwm gpio led */
+	case QPNP_ID_LED_PWM_GPIO:
+		rc = qpnp_pwm_gpio_set(led);
+		if (rc)
+			dev_err(&led->spmi_dev->dev,
+				"pwm gpio led initialize failed(%d)\n", rc);
+		break;
 	default:
 		dev_err(&led->spmi_dev->dev, "Invalid LED(%d)\n", led->id);
 		break;
@@ -1915,6 +2196,12 @@ static int qpnp_led_set_max_brightness(struct qpnp_led_data *led)
 		break;
 	case QPNP_ID_KPDBL:
 		led->cdev.max_brightness = KPDBL_MAX_LEVEL;
+		break;
+	case QPNP_ID_LED_CHG:
+			led->cdev.max_brightness = led->max_current;
+		break;
+	case QPNP_ID_LED_PWM_GPIO:
+			led->cdev.max_brightness = led->max_current;
 		break;
 	default:
 		dev_err(&led->spmi_dev->dev, "Invalid LED(%d)\n", led->id);
@@ -2670,7 +2957,6 @@ static ssize_t blink_store(struct device *dev,
 		return ret;
 	led = container_of(led_cdev, struct qpnp_led_data, cdev);
 	led->cdev.brightness = blinking ? led->cdev.max_brightness : 0;
-
 	switch (led->id) {
 	case QPNP_ID_LED_MPP:
 		led_blink(led, led->mpp_cfg->pwm_cfg);
@@ -2682,6 +2968,15 @@ static ssize_t blink_store(struct device *dev,
 		break;
 	case QPNP_ID_KPDBL:
 		led_blink(led, led->kpdbl_cfg->pwm_cfg);
+		break;
+	case QPNP_ID_LED_PWM_GPIO:
+		if(blinking != 0)
+			pwm_gpio_blink = 1;
+		else
+			pwm_gpio_blink = 0;
+	
+		if(!pwm_gpio_on)
+			ret = qpnp_pwm_gpio_set(led);
 		break;
 	default:
 		dev_err(&led->spmi_dev->dev, "Invalid LED id type for blink\n");
@@ -3005,6 +3300,48 @@ static int qpnp_mpp_init(struct qpnp_led_data *led)
 	return 0;
 }
 
+/*Added pwm gpio led init */
+static int qpnp_pwm_gpio_init(struct qpnp_led_data *led)
+{
+	int rc;
+	u8 val;
+	val = 0x18;
+	rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+			led->spmi_dev->sid, 0xc240,
+			&val, 1);
+	val = 0x05;
+	rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+			led->spmi_dev->sid, 0xc242,
+			&val, 1);
+	val = 0x80;
+	rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+			led->spmi_dev->sid, 0xc246,
+			&val, 1);
+	val = 0x06;
+	rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+			1, 0xbc41,
+			&val, 1);
+	val = 0x45;
+	rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+			1, 0xbc42,
+			&val, 1);
+	printk("pwm gpio led init\n");
+	return 0;
+}
+
+/*Added charging led init */
+static int qpnp_chg_init(struct qpnp_led_data *led)
+{
+	int rc = 0;
+	u8 val = 0x0;
+	printk("chg led init\n");
+	//set chg led to 0 when init
+	rc = spmi_ext_register_writel(led->spmi_dev->ctrl,
+			led->spmi_dev->sid, WLED_OVP_CFG_REG(led->base),
+			&val, 1);
+	return rc;
+}
+
 static int qpnp_gpio_init(struct qpnp_led_data *led)
 {
 	int rc;
@@ -3016,7 +3353,16 @@ static int qpnp_gpio_init(struct qpnp_led_data *led)
 			"Failed to write led vin control reg\n");
 		return rc;
 	}
-
+	//liuyh disable gpio mask
+		rc = qpnp_led_masked_write(led,
+			 LED_GPIO_EN_CTRL(led->base),
+			 LED_GPIO_EN_MASK,
+			 LED_GPIO_EN_DISABLE);
+			 
+		if (rc) {
+			dev_err(&led_kpd->spmi_dev->dev,
+					"Failed to write led enable reg\n");
+		}
 	return 0;
 }
 
@@ -3063,6 +3409,20 @@ static int qpnp_led_initialize(struct qpnp_led_data *led)
 		if (rc)
 			dev_err(&led->spmi_dev->dev,
 				"KPDBL initialize failed(%d)\n", rc);
+		break;
+/*Added charging led */
+	case QPNP_ID_LED_CHG:
+		rc = qpnp_chg_init(led);
+		if (rc)
+			dev_err(&led->spmi_dev->dev,
+				"chargerint led initialize failed(%d)\n", rc);
+		break;
+/*Added pwm gpio led */
+	case QPNP_ID_LED_PWM_GPIO:
+		rc = qpnp_pwm_gpio_init(led);
+		if (rc)
+			dev_err(&led->spmi_dev->dev,
+				"pwm gpio led initialize(%d)\n", rc);
 		break;
 	default:
 		dev_err(&led->spmi_dev->dev, "Invalid LED(%d)\n", led->id);
@@ -3813,6 +4173,33 @@ err_config_mpp:
 	return rc;
 }
 
+/*Added pwm gpio led config*/
+static int qpnp_get_config_pwm_gpio(struct qpnp_led_data *led,
+		struct device_node *node)
+{
+
+	led->pwm_gpio_cfg = devm_kzalloc(&led->spmi_dev->dev,
+			sizeof(struct pwm_gpio_config_data), GFP_KERNEL);
+	if (!led->pwm_gpio_cfg) {
+		dev_err(&led->spmi_dev->dev, "Unable to allocate memory gpio struct\n");
+		return -ENOMEM;
+	}
+	return 0;
+}
+/*Added charging led config*/
+static int qpnp_get_config_chg(struct qpnp_led_data *led,
+		struct device_node *node)
+{
+
+	led->chg_cfg = devm_kzalloc(&led->spmi_dev->dev,
+			sizeof(struct chg_config_data), GFP_KERNEL);
+	if (!led->chg_cfg) {
+		dev_err(&led->spmi_dev->dev, "Unable to allocate memory gpio struct\n");
+		return -ENOMEM;
+	}
+	return 0;
+
+}
 static int qpnp_get_config_gpio(struct qpnp_led_data *led,
 		struct device_node *node)
 {
@@ -3981,6 +4368,22 @@ static int qpnp_leds_probe(struct spmi_device *spmi)
 					"Unable to read kpdbl config data\n");
 				goto fail_id_check;
 			}
+/*Added charging led */
+		} else if (strcmp(led_label, "chgled") == 0) {
+			rc = qpnp_get_config_chg(led, temp);
+			if (rc < 0) {
+				dev_err(&led->spmi_dev->dev,
+						"Unable to read gpio config data\n");
+				goto fail_id_check;
+			}
+/*Added pwm gpio led */
+		} else if (strcmp(led_label, "gpio-pwm") == 0) {
+			rc = qpnp_get_config_pwm_gpio(led, temp);
+			if (rc < 0) {
+				dev_err(&led->spmi_dev->dev,
+						"Unable to read gpio config data\n");
+				goto fail_id_check;
+			}
 		} else {
 			dev_err(&led->spmi_dev->dev, "No LED matching label\n");
 			rc = -EINVAL;
@@ -4107,6 +4510,11 @@ static int qpnp_leds_probe(struct spmi_device *spmi)
 				if (rc)
 					goto fail_id_check;
 			}
+		} else if (led->id == QPNP_ID_LED_PWM_GPIO) {
+				rc = sysfs_create_group(&led->cdev.dev->kobj,
+					&blink_attr_group);
+				if (rc)
+					goto fail_id_check;
 		}
 
 		/* configure default state */
@@ -4121,6 +4529,10 @@ static int qpnp_leds_probe(struct spmi_device *spmi)
 		parsed_leds++;
 	}
 	dev_set_drvdata(&spmi->dev, led_array);
+	for (i = 0; i < parsed_leds; i++) {
+		if (led_array[i].id == QPNP_ID_LED_PWM_GPIO)
+			led_kpd = &led_array[i];
+	}
 	return 0;
 
 fail_id_check:

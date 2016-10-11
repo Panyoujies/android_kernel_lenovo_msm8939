@@ -1039,6 +1039,18 @@ config SCHED_HMP
 	  in their instructions per-cycle capability or the maximum
 	  frequency they can attain.
 
+config SELFISH_TASK_MIGR
+  bool "Selfish Task Migration"
+  depends on SCHED_HMP
+  help
+    This enables support for HPM systems.  If you say Y here, the
+    kernel will migrate the selfish task to power-efficent CPU. If
+    you say Y here,selfish task will stay on performance-efficent CPU.
+    Selfish task is a task who always on the CPU run queue without very little
+    sleep time.This task should be abnormal in Mobile Phone and will result
+    in more power consumption,so we place it to the power-efficent CPU
+    If you don't know what to do here, say N.
+
 config CHECKPOINT_RESTORE
 	bool "Checkpoint/restore support" if EXPERT
 	default n

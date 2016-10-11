@@ -112,6 +112,24 @@ static struct clk_lookup cpu_clocks_8939[] = {
 static struct mux_div_clk *a53ssmux[] = {&a53ssmux_bc,
 						&a53ssmux_lc, &a53ssmux_cci};
 
+//yangjq, 20140922, Add to show AP's clock rate in /sys/private/pm_status, START
+#if 1
+unsigned long acpu_clk_get_rate(int cpu)
+{
+	unsigned long cur_rate;
+
+#if 0
+	struct clk *c = cpu_clk[cpu];
+	cur_rate = clk_get_rate(c);
+#else
+	cur_rate = clk_get_rate(&a53ssmux[cpu/4]->c);
+#endif
+
+	return cur_rate;
+}
+#endif //1
+//yangjq, 20140922, Add to show AP's clock rate in /sys/private/pm_status, END
+
 static int of_get_fmax_vdd_class(struct platform_device *pdev, struct clk *c,
 								char *prop_name)
 {

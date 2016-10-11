@@ -17,6 +17,8 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 
+static int cd_debounce_time = 200;
+
 struct mmc_gpio {
 	int ro_gpio;
 	int cd_gpio;
@@ -67,10 +69,15 @@ static irqreturn_t mmc_gpio_cd_irqt(int irq, void *dev_id)
 				mmc_hostname(host), ctx->status, status,
 				(host->caps2 & MMC_CAP2_CD_ACTIVE_HIGH) ?
 				"HIGH" : "LOW");
+		if (status == 1) {
+			cd_debounce_time = 1000;
+			host->rescan_count = 4;
+		} else
+			cd_debounce_time = 200;
 		ctx->status = status;
 
 		/* Schedule a card detection after a debounce timeout */
-		mmc_detect_change(host, msecs_to_jiffies(200));
+		mmc_detect_change(host, msecs_to_jiffies(cd_debounce_time));
 	}
 out:
 

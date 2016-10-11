@@ -398,6 +398,37 @@ static struct ctl_table kern_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 	},
+#ifdef CONFIG_SELFISH_TASK_MIGR
+	{
+		.procname	= "sched_selfish_task_migr_enable",
+		.data		= &sysctl_sched_selfish_task_migr_enable,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= sched_hmp_proc_update_handler,
+	},
+	{
+		.procname	= "sched_selfish_task_migr_divsor",
+		.data		= &sysctl_sched_selfish_task_migr_divsor,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= sched_hmp_proc_update_handler,
+	},
+	{
+		.procname	= "sched_selfish_task_migr_threshold",
+		.data		= &sysctl_sched_selfish_task_migr_threshold,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= sched_hmp_proc_update_handler,
+	},
+	{
+		.procname	= "sched_selfish_task_id",
+		.data		= &sysctl_sched_selfish_task_id,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= sched_hmp_proc_update_handler,
+	},
+#endif
+		
 	{
 		.procname	= "sched_upmigrate",
 		.data		= &sysctl_sched_upmigrate_pct,

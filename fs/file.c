@@ -23,6 +23,7 @@
 #include <linux/rcupdate.h>
 #include <linux/workqueue.h>
 
+#define FD_OVER_DEBUG
 int sysctl_nr_open __read_mostly = 1024*1024;
 int sysctl_nr_open_min = BITS_PER_LONG;
 int sysctl_nr_open_max = 1024 * 1024; /* raised later */
@@ -455,6 +456,144 @@ struct files_struct init_files = {
 	.file_lock	= __SPIN_LOCK_UNLOCKED(init_files.file_lock),
 };
 
+#ifdef FD_OVER_DEBUG
+#define FD_CHECK_NAME_SIZE 256
+// Declare a radix tree to construct fd set tree
+static RADIX_TREE(over_fd_tree, GFP_KERNEL);
+static LIST_HEAD(fd_listhead);
+static DEFINE_MUTEX(over_fd_mutex);
+struct over_fd_entry
+{
+	int num_of_fd;
+	char name[FD_CHECK_NAME_SIZE];
+	int hash;
+	struct list_head fd_link;
+};
+
+/*
+* Get File Name from FD value
+*/
+long get_file_name_from_fd(struct files_struct *files, int fd, int procid, struct over_fd_entry *res_name)
+{
+	char *tmp;
+	char *pathname;
+	struct file *file;
+	struct path path;
+	spin_lock(&files->file_lock);
+	file = fget(fd);
+	if (!file) {
+        spin_unlock(&files->file_lock);
+        return (long)NULL;
+	}
+	path_get(&file->f_path);
+	path = file->f_path;
+	fput(file);
+	spin_unlock(&files->file_lock);
+	tmp = (char *)__get_free_page(GFP_TEMPORARY);
+	if (!tmp) {
+        return (long)NULL;
+	}
+	pathname = d_path(&path, tmp, PAGE_SIZE);
+
+	path_put(&path);
+	if (IS_ERR(pathname))
+	{
+        free_page((unsigned long)tmp);
+	    return PTR_ERR(pathname);
+	}  /* do something here with pathname */
+	if(pathname!=NULL)
+	{
+	    strncpy(res_name->name, pathname, FD_CHECK_NAME_SIZE - 1);
+	}
+	free_page((unsigned long)tmp);
+	return 1;
+}
+
+unsigned int get_hash(char *name)
+{
+    return full_name_hash(name, strlen(name));
+}
+
+static struct over_fd_entry* fd_lookup(unsigned int hash)
+{
+    return radix_tree_lookup(&over_fd_tree, hash);
+}
+
+static void fd_insert(struct over_fd_entry *entry)
+{
+	unsigned int hash = get_hash(entry->name);
+	struct over_fd_entry *find_entry = fd_lookup(hash);
+
+	if(!find_entry)	// Can't find the element, just add the element
+	{
+		entry->num_of_fd = 1;
+		entry->hash = hash;
+		list_add_tail(&entry->fd_link, &fd_listhead);
+		radix_tree_insert(&over_fd_tree, hash, (void *)entry);
+	}
+	else	// Cover the original element
+	{
+		find_entry->num_of_fd = find_entry->num_of_fd+1;
+		kfree(entry);
+	}
+}
+
+static void fd_delete(unsigned int hash)
+{
+	radix_tree_delete(&over_fd_tree, hash);
+}
+
+void fd_show_open_files(pid_t pid, struct files_struct *files, struct fdtable *fdt)
+{
+	int i=0;
+	struct over_fd_entry *lentry;
+	long result;
+	int num_of_entry;
+	int sum_fds_of_pid = 0;
+	 int  socketcnt=0;
+
+	mutex_lock(&over_fd_mutex);
+	printk(KERN_ERR "[FDDEBUG](PID:%d) %s Max FD Number:%d", current->pid, current->comm,fdt->max_fds);
+	for(i=0; i<fdt->max_fds; i++) {
+		struct over_fd_entry *entry = (struct over_fd_entry*)kzalloc(sizeof(struct over_fd_entry), GFP_KERNEL);
+		if(!entry) {
+			pr_warning("[FDDEBUG](PID:%d)Empty FD:%d", pid, i);
+		}
+		else {
+			memset(entry->name, 0, sizeof entry->name);
+			result = get_file_name_from_fd(files, i, pid, entry);
+			if(result==1) {
+				fd_insert(entry);
+				sum_fds_of_pid++;
+			}
+		}
+	}
+	for(;;) {
+		if(list_empty(&fd_listhead)) {
+			break;
+		}
+		lentry = list_entry((&fd_listhead)->next, struct over_fd_entry, fd_link);
+		num_of_entry = lentry->num_of_fd;
+		if(lentry != NULL && lentry->name!=NULL){
+			if(!memcmp(lentry->name,"socket",6))
+			{
+				socketcnt++;
+			}
+			else
+				pr_warning(" name::%s Num:%d)\n",  lentry->name, num_of_entry);
+			}
+		else
+			pr_warning("[FDDEBUG](PID:%d fileName:%s Num:%d)\n", pid, "NULL", num_of_entry);
+		list_del((&fd_listhead)->next);
+		fd_delete(lentry->hash);
+		kfree(lentry);
+    }
+    if(sum_fds_of_pid) {
+        pr_warning("[FDDEBUG](PID:%d totalFDs:%d) socket Number %d\n", pid, sum_fds_of_pid,socketcnt);
+    }
+    mutex_unlock(&over_fd_mutex);
+}
+#endif
 /*
  * allocate a file descriptor, mark it busy.
  */
@@ -464,7 +603,10 @@ int __alloc_fd(struct files_struct *files,
 	unsigned int fd;
 	int error;
 	struct fdtable *fdt;
-
+#ifdef FD_OVER_DEBUG
+	static int dump_current_open_files = 0;
+	static int last_pid=0;
+#endif
 	spin_lock(&files->file_lock);
 repeat:
 	fdt = files_fdtable(files);
@@ -513,6 +655,18 @@ repeat:
 
 out:
 	spin_unlock(&files->file_lock);
+#ifdef FD_OVER_DEBUG
+	if(error == -EMFILE)
+        {
+	    dump_current_open_files = 0;
+	    if(!dump_current_open_files &&(current->pid!= last_pid)) {
+			pr_warning("[FDDEBUG](PID:%d %s )fd over RLIMIT_NOFILE:%ld\n", current->pid,current->comm, rlimit(RLIMIT_NOFILE));
+			fd_show_open_files(current->pid, files, fdt);
+			dump_current_open_files = 0x1;
+			last_pid = current->pid;
+            }
+	}
+#endif
 	return error;
 }
 

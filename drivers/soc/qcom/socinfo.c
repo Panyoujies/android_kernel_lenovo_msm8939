@@ -1141,17 +1141,18 @@ static int __init socinfo_init_sysfs(void)
 
 late_initcall(socinfo_init_sysfs);
 
+bool  cpuv3 =false;
 static void socinfo_print(void)
 {
 	switch (socinfo->v1.format) {
 	case 1:
-		pr_info("%s: v%u, id=%u, ver=%u.%u\n",
+		pr_err("%s: v%u, id=%u, ver=%u.%u\n",
 			__func__, socinfo->v1.format, socinfo->v1.id,
 			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
 			SOCINFO_VERSION_MINOR(socinfo->v1.version));
 		break;
 	case 2:
-		pr_info("%s: v%u, id=%u, ver=%u.%u, "
+		pr_err("%s: v%u, id=%u, ver=%u.%u, "
 			 "raw_id=%u, raw_ver=%u\n",
 			__func__, socinfo->v1.format, socinfo->v1.id,
 			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
@@ -1159,7 +1160,7 @@ static void socinfo_print(void)
 			socinfo->v2.raw_id, socinfo->v2.raw_version);
 		break;
 	case 3:
-		pr_info("%s: v%u, id=%u, ver=%u.%u, "
+		pr_err("%s: v%u, id=%u, ver=%u.%u, "
 			 "raw_id=%u, raw_ver=%u, hw_plat=%u\n",
 			__func__, socinfo->v1.format, socinfo->v1.id,
 			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
@@ -1168,7 +1169,7 @@ static void socinfo_print(void)
 			socinfo->v3.hw_platform);
 		break;
 	case 4:
-		pr_info("%s: v%u, id=%u, ver=%u.%u, "
+		pr_err("%s: v%u, id=%u, ver=%u.%u, "
 			 "raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n",
 			__func__, socinfo->v1.format, socinfo->v1.id,
 			SOCINFO_VERSION_MAJOR(socinfo->v1.version),
@@ -1177,7 +1178,7 @@ static void socinfo_print(void)
 			socinfo->v3.hw_platform, socinfo->v4.platform_version);
 		break;
 	case 5:
-		pr_info("%s: v%u, id=%u, ver=%u.%u, "
+		pr_err("%s: v%u, id=%u, ver=%u.%u, "
 			 "raw_id=%u, raw_ver=%u, hw_plat=%u,  hw_plat_ver=%u\n"
 			" accessory_chip=%u\n", __func__, socinfo->v1.format,
 			socinfo->v1.id,
@@ -1188,7 +1189,7 @@ static void socinfo_print(void)
 			socinfo->v5.accessory_chip);
 		break;
 	case 6:
-		pr_info("%s: v%u, id=%u, ver=%u.%u, "
+		pr_err("%s: v%u, id=%u, ver=%u.%u, "
 			 "raw_id=%u, raw_ver=%u, hw_plat=%u,  hw_plat_ver=%u\n"
 			" accessory_chip=%u hw_plat_subtype=%u\n", __func__,
 			socinfo->v1.format,
@@ -1202,7 +1203,7 @@ static void socinfo_print(void)
 		break;
 	case 8:
 	case 7:
-		pr_info("%s: v%u, id=%u, ver=%u.%u, raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n accessory_chip=%u, hw_plat_subtype=%u, pmic_model=%u, pmic_die_revision=%u\n",
+		pr_err("%s: v%u, id=%u, ver=%u.%u, raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n accessory_chip=%u, hw_plat_subtype=%u, pmic_model=%u, pmic_die_revision=%u\n",
 			__func__,
 			socinfo->v1.format,
 			socinfo->v1.id,
@@ -1214,9 +1215,15 @@ static void socinfo_print(void)
 			socinfo->v6.hw_platform_subtype,
 			socinfo->v7.pmic_model,
 			socinfo->v7.pmic_die_revision);
+
+			if(SOCINFO_VERSION_MAJOR(socinfo->v1.version)==3)
+			{
+				pr_err("CPU R3 detect\n");
+				cpuv3 = true;
+			}
 		break;
 	case 9:
-		pr_info("%s: v%u, id=%u, ver=%u.%u, raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n accessory_chip=%u, hw_plat_subtype=%u, pmic_model=%u, pmic_die_revision=%u foundry_id=%u\n",
+		pr_err("%s: v%u, id=%u, ver=%u.%u, raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n accessory_chip=%u, hw_plat_subtype=%u, pmic_model=%u, pmic_die_revision=%u foundry_id=%u\n",
 			__func__,
 			socinfo->v1.format,
 			socinfo->v1.id,
@@ -1231,7 +1238,7 @@ static void socinfo_print(void)
 			socinfo->v9.foundry_id);
 		break;
 	case 10:
-		pr_info("%s: v%u, id=%u, ver=%u.%u, raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n accessory_chip=%u, hw_plat_subtype=%u, pmic_model=%u, pmic_die_revision=%u foundry_id=%u serial_number=%u\n",
+		pr_err("%s: v%u, id=%u, ver=%u.%u, raw_id=%u, raw_ver=%u, hw_plat=%u, hw_plat_ver=%u\n accessory_chip=%u, hw_plat_subtype=%u, pmic_model=%u, pmic_die_revision=%u foundry_id=%u serial_number=%u\n",
 			__func__,
 			socinfo->v1.format,
 			socinfo->v1.id,
@@ -1339,7 +1346,8 @@ int __init socinfo_init(void)
 
 	return 0;
 }
-subsys_initcall(socinfo_init);
+arch_initcall(socinfo_init);
+//subsys_initcall(socinfo_init);
 
 const int get_core_count(void)
 {

@@ -1,0 +1,6 @@
+header-y += msmb_generic_buf_mgr.h
+header-y += msm_camera.h
+header-y += msm_fd.h
+header-y += msm_gemini.h
+header-y += msm_gestures.h
+header-y += msm_isp.h

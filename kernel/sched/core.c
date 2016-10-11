@@ -121,6 +121,30 @@ const char *task_event_names[] = {"PUT_PREV_TASK", "PICK_NEXT_TASK",
 ATOMIC_NOTIFIER_HEAD(migration_notifier_head);
 ATOMIC_NOTIFIER_HEAD(load_alert_notifier_head);
 
+#ifdef CONFIG_SELFISH_TASK_MIGR
+/*
+ * Enable slefish task migration feature, default true.
+ */
+unsigned int __read_mostly sysctl_sched_selfish_task_migr_enable = 1;
+
+/*
+ *When the time of a task on CPU runnig queue without any sleep larger
+ than this value, this task will be considerated as a selfish task.
+ default is 30s
+ */
+u64  __read_mostly sysctl_sched_selfish_task_migr_threshold = 30 * NSEC_PER_SEC;
+
+/*
+ *For selfish task, we will divide its runtime by this divsor,default is 10
+ */
+unsigned int __read_mostly sysctl_sched_selfish_task_migr_divsor = 10;
+
+/*
+ *For selfish task, we will divide its runtime by this divsor,default is 10
+ */
+unsigned int __read_mostly sysctl_sched_selfish_task_id = -1;
+#endif
+
 #ifdef smp_mb__before_atomic
 void __smp_mb__before_atomic(void)
 {
@@ -1249,6 +1273,23 @@ static int __init set_sched_ravg_window(char *str)
 
 early_param("sched_ravg_window", set_sched_ravg_window);
 
+#ifdef CONFIG_SELFISH_TASK_MIGR
+static inline void
+update_selfish_task_window_start(struct task_struct *p,struct rq *rq, u64 wallclock)
+{
+	s64 delta;
+	int nr_windows;
+
+	delta = wallclock - rq->selfish_task_window_start;
+	BUG_ON(delta < 0);
+	if (delta < sysctl_sched_selfish_task_migr_threshold)
+		return;
+	nr_windows = div64_u64(delta, sysctl_sched_selfish_task_migr_threshold);
+	rq->selfish_task_window_start += (u64)nr_windows * sysctl_sched_selfish_task_migr_threshold;
+	pr_debug("%s:window start %lld mark_start %lld task = %s on cpu %d\n",__func__,rq->selfish_task_window_start,p->ravg.mark_start,p->comm,cpu_of(rq));
+}
+#endif
+
 static inline void
 update_window_start(struct rq *rq, u64 wallclock)
 {
@@ -1484,6 +1525,12 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 		else
 			delta = irqtime;
 		delta = scale_exec_time(delta, rq);
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+		if(p->task_need_down_migrate)
+		    delta = div64_u64(delta,sysctl_sched_selfish_task_migr_divsor);   
+#endif
+		
 		rq->curr_runnable_sum += delta;
 		if (!is_idle_task(p) && !exiting_task(p))
 			p->ravg.curr_window += delta;
@@ -1521,6 +1568,12 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 
 		/* Account piece of busy time in the current window. */
 		delta = scale_exec_time(wallclock - window_start, rq);
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+		if(p->task_need_down_migrate)
+		    delta = div64_u64(delta,sysctl_sched_selfish_task_migr_divsor);   
+#endif
+		
 		rq->curr_runnable_sum += delta;
 		if (!exiting_task(p))
 			p->ravg.curr_window = delta;
@@ -1562,6 +1615,12 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 
 		/* Account piece of busy time in the current window. */
 		delta = scale_exec_time(wallclock - window_start, rq);
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+		if(p->task_need_down_migrate)
+		    delta = div64_u64(delta,sysctl_sched_selfish_task_migr_divsor);   
+#endif
+		
 		rq->curr_runnable_sum = delta;
 		if (!is_idle_task(p) && !exiting_task(p))
 			p->ravg.curr_window = delta;
@@ -1587,6 +1646,12 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 		 * window then that is all that need be accounted. */
 		rq->prev_runnable_sum = rq->curr_runnable_sum;
 		if (mark_start > window_start) {
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+			if(p->task_need_down_migrate)
+			    delta = div64_u64(irqtime,sysctl_sched_selfish_task_migr_divsor);   
+#endif
+			
 			rq->curr_runnable_sum = scale_exec_time(irqtime, rq);
 			return;
 		}
@@ -1607,6 +1672,12 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 
 		/* Process the remaining IRQ busy time in the current window. */
 		delta = wallclock - window_start;
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+		if(p->task_need_down_migrate)
+		    delta = div64_u64(delta,sysctl_sched_selfish_task_migr_divsor);   
+#endif
+		
 		rq->curr_runnable_sum = scale_exec_time(delta, rq);
 
 		return;
@@ -1707,10 +1778,25 @@ done:
 	trace_sched_update_history(rq, p, runtime, samples, event);
 }
 
+#ifdef CONFIG_SELFISH_TASK_MIGR
+static void add_to_selfish_task_demand(struct rq *rq, struct task_struct *p,
+				u64 delta)
+{
+	p->ravg.selfish_task_sum += delta;
+}
+#endif
+
+
 static void add_to_task_demand(struct rq *rq, struct task_struct *p,
 				u64 delta)
 {
 	delta = scale_exec_time(delta, rq);
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+	if(p->task_need_down_migrate)
+	    delta = div64_u64(delta,sysctl_sched_selfish_task_migr_divsor);   
+#endif
+	
 	p->ravg.sum += delta;
 	if (unlikely(p->ravg.sum > sched_ravg_window))
 		p->ravg.sum = sched_ravg_window;
@@ -1818,6 +1904,81 @@ static void update_task_demand(struct task_struct *p, struct rq *rq,
 	add_to_task_demand(rq, p, wallclock - mark_start);
 }
 
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+#if 0
+static int account_busy_for_selfish_task_demand(struct task_struct *p, int event)
+{
+	/* No need to bother updating task demand for exiting tasks
+	 * or the idle task. */
+	if (exiting_task(p) || is_idle_task(p))
+		return 0;
+
+	/* When a task is waking up it is completing a segment of non-busy
+	 * time. Likewise, if wait time is not treated as busy time, then
+	 * when a task begins to run or is migrated, it is not running and
+	 * is completing a segment of non-busy time. */
+	if (event == TASK_WAKE || event == PICK_NEXT_TASK || event == TASK_MIGRATE)
+		return 0;
+
+	return 1;
+}
+#endif
+static void update_selfish_task_demand(struct task_struct *p, struct rq *rq,
+	     int event, u64 wallclock)
+{
+	u64 mark_start = p->ravg.mark_start;
+	u64 delta, window_start = rq->selfish_task_window_start;
+	int new_window, nr_full_windows;
+	u32 window_size = sysctl_sched_selfish_task_migr_threshold;
+
+	new_window = mark_start < window_start;
+	if (!account_busy_for_task_demand(p, event)) {
+		if (new_window){
+			p->ravg.prev_selfish_task_sum = p->ravg.selfish_task_sum;
+			p->ravg.selfish_task_sum = 0;
+		}
+		return;
+	}
+	if (!new_window) {
+		/* Mostly will enter this branch,because selfish window is too
+		 * large */
+		add_to_selfish_task_demand(rq, p, wallclock - mark_start);
+		return;
+	}
+
+	pr_debug("%s:mark start %lld,window start %lld\n",__func__,div64_u64(mark_start,NSEC_PER_MSEC),div64_u64(window_start,NSEC_PER_MSEC));
+	delta = window_start - mark_start;
+	nr_full_windows = div64_u64(delta, window_size);
+	window_start -= (u64)nr_full_windows * (u64)window_size;
+
+	/* Process (window_start - mark_start) first */
+	add_to_selfish_task_demand(rq, p, window_start - mark_start);
+
+	p->ravg.prev_selfish_task_sum = p->ravg.selfish_task_sum;
+	p->ravg.selfish_task_sum = 0;
+	if(nr_full_windows)
+	    p->ravg.prev_selfish_task_sum = window_size;
+	/* Process (wallclock - window_start) next */
+	window_start += (u64)nr_full_windows * (u64)window_size;
+	mark_start = window_start;
+	add_to_selfish_task_demand(rq, p, wallclock - mark_start);
+	pr_debug("%s:pid %d:task %s, prev sum is %lld,current sum is %lld,cpu = %d\n",__func__,p->pid,p->comm, \
+	     div64_u64(p->ravg.prev_selfish_task_sum,NSEC_PER_MSEC),div64_u64(p->ravg.selfish_task_sum,NSEC_PER_MSEC),cpu_of(rq));
+
+	if(sysctl_sched_selfish_task_migr_enable == 1 && p->sched_class == &fair_sched_class){
+		if (p->ravg.prev_selfish_task_sum > div64_u64(sysctl_sched_selfish_task_migr_threshold * 99,100)){ 
+			sysctl_sched_selfish_task_id = p->pid;
+			p->task_need_down_migrate = true;
+			pr_warn("sched:on cpu %d task pid = %d,name = %s is selfish %lld\n",cpu_of(rq),p->pid,p->comm,p->ravg.prev_selfish_task_sum);
+		}else{
+			pr_debug("sched:on cpu %d task pid = %d,name = %s is not selfish %lld\n",cpu_of(rq),p->pid,p->comm,p->ravg.prev_selfish_task_sum);
+			p->task_need_down_migrate = false;
+		}
+	}
+}
+#endif
+
 /* Reflect task activity on its demand and cpu's busy time statistics */
 static void update_task_ravg(struct task_struct *p, struct rq *rq,
 	     int event, u64 wallclock, u64 irqtime)
@@ -1829,10 +1990,19 @@ static void update_task_ravg(struct task_struct *p, struct rq *rq,
 
 	update_window_start(rq, wallclock);
 
+#ifdef CONFIG_SELFISH_TASK_MIGR
+	update_selfish_task_window_start(p,rq, wallclock);
+#endif
+
 	if (!p->ravg.mark_start)
 		goto done;
 
 	update_task_demand(p, rq, event, wallclock);
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+	update_selfish_task_demand(p, rq, event, wallclock);
+#endif
+	
 	update_cpu_busy_time(p, rq, event, wallclock, irqtime);
 
 done:
@@ -1935,6 +2105,11 @@ static inline void set_window_start(struct rq *rq)
 #endif
 		raw_spin_unlock(&sync_rq->lock);
 	}
+
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+	rq->selfish_task_window_start = rq->window_start;
+#endif
 
 	rq->curr->ravg.mark_start = rq->window_start;
 }
@@ -2240,6 +2415,18 @@ static void fixup_busy_time(struct task_struct *p, int new_cpu)
 
 	update_task_ravg(p, task_rq(p), TASK_MIGRATE,
 			 wallclock, 0);
+
+#ifdef CONFIG_SELFISH_TASK_MIGR
+	if((dest_rq->selfish_task_window_start > task_rq(p)->selfish_task_window_start) &&    \
+		(p->ravg.mark_start > dest_rq->selfish_task_window_start) &&  \
+		(dest_rq->selfish_task_window_start - task_rq(p)->selfish_task_window_start) > NSEC_PER_SEC){
+		pr_debug("%s:%s:mark %lld,dest rq window  %lld,current rq %lld sum %lld\n",__func__,p->comm,p->ravg.mark_start,dest_rq->selfish_task_window_start,
+			task_rq(p)->selfish_task_window_start,p->ravg.selfish_task_sum);
+		p->ravg.prev_selfish_task_sum = p->ravg.selfish_task_sum;
+		p->ravg.selfish_task_sum = 0;
+	}
+#endif
+
 
 	/*
 	 * Remove task's load from rq as its now migrating to

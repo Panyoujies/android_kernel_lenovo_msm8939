@@ -3258,6 +3258,10 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 	pr_info("%s: %s: trying to init card at %u Hz\n",
 		mmc_hostname(host), __func__, host->f_init);
 #endif
+
+	pr_err("%s: %s: trying to init card at %u Hz\n",
+		mmc_hostname(host), __func__, host->f_init);
+
 	mmc_power_up(host);
 
 	/*
@@ -3285,6 +3289,7 @@ static int mmc_rescan_try_freq(struct mmc_host *host, unsigned freq)
 		return 0;
 
 	mmc_power_off(host);
+	pr_err("%s failed by maxina\n", __func__);
 	return -EIO;
 }
 
@@ -3419,8 +3424,14 @@ void mmc_rescan(struct work_struct *work)
 
 	mmc_rpm_hold(host, &host->class_dev);
 	mmc_claim_host(host);
-	if (!mmc_rescan_try_freq(host, host->f_min))
+	if (!mmc_rescan_try_freq(host, host->f_min)) {
 		extend_wakelock = true;
+	} else {
+		if (host->rescan_count) {
+			mmc_schedule_delayed_work(&host->detect, HZ);
+			host->rescan_count--;
+		}
+	}
 	mmc_release_host(host);
 	mmc_rpm_release(host, &host->class_dev);
  out:
@@ -3736,6 +3747,7 @@ int mmc_suspend_host(struct mmc_host *host)
 	}
 	mmc_bus_put(host);
 
+
 	if (!err && !mmc_card_keep_power(host)) {
 		mmc_claim_host(host);
 		mmc_power_off(host);
@@ -3771,6 +3783,7 @@ int mmc_resume_host(struct mmc_host *host)
 	}
 
 	if (host->bus_ops && !host->bus_dead) {
+
 		if (!mmc_card_keep_power(host)) {
 			mmc_claim_host(host);
 			mmc_power_up(host);

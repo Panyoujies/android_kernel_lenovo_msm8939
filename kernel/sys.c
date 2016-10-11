@@ -64,6 +64,7 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/unistd.h>
+#include<linux/sched.h>
 
 #ifndef SET_UNALIGN_CTL
 # define SET_UNALIGN_CTL(a,b)	(-EINVAL)
@@ -447,7 +448,7 @@ void kernel_power_off(void)
 		pm_power_off_prepare();
 	migrate_to_reboot_cpu();
 	syscore_shutdown();
-	printk(KERN_EMERG "Power down.\n");
+	printk(KERN_EMERG "Power down %s.\n",current->comm);
 	kmsg_dump(KMSG_DUMP_POWEROFF);
 	machine_power_off();
 }

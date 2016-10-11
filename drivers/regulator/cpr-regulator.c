@@ -1907,6 +1907,7 @@ static int cpr_populate_opp_table(struct cpr_regulator *cpr_vreg,
  * array has been initialized and the open_loop_volt array values have been
  * initialized and limited to the existing floor to ceiling voltage range.
  */
+ extern bool cpuv3;
 static int cpr_reduce_ceiling_voltage(struct cpr_regulator *cpr_vreg,
 				struct device *dev)
 {
@@ -1922,6 +1923,12 @@ static int cpr_reduce_ceiling_voltage(struct cpr_regulator *cpr_vreg,
 		return 0;
 
 	for (i = CPR_CORNER_MIN; i <= cpr_vreg->num_corners; i++) {
+
+		if(cpuv3==true)
+		{
+			printk(KERN_ERR "skip cpr_reduce_ceiling_voltage for R3 chip normal mode\n");
+			if(cpr_vreg->corner_map[i]==2) continue;
+		}
 		if (reduce_to_interpolated_open_loop &&
 		    cpr_vreg->open_loop_volt[i] < cpr_vreg->ceiling_volt[i])
 			cpr_vreg->ceiling_volt[i] = cpr_vreg->open_loop_volt[i];

@@ -25,6 +25,7 @@
 #include <linux/bitops.h>
 #include <linux/leds.h>
 #include <linux/debugfs.h>
+#include <linux/delay.h>
 
 #define CREATE_MASK(NUM_BITS, POS) \
 	((unsigned char) (((1 << (NUM_BITS)) - 1) << (POS)))
@@ -128,7 +129,7 @@
 #define VDD_TRIM_SUPPORTED			BIT(0)
 
 #define QPNP_CHARGER_DEV_NAME	"qcom,qpnp-linear-charger"
-
+bool max17048_tmp_chip_init = 0;
 /* usb_interrupts */
 
 struct qpnp_lbc_irq {
@@ -667,6 +668,14 @@ static int qpnp_lbc_is_chg_gone(struct qpnp_lbc_chip *chip)
 	return (rt_sts & CHG_GONE_BIT) ? 1 : 0;
 }
 
+static struct qpnp_lbc_chip *tmp_chip=NULL;
+int is_charger_plug_in(void)
+{
+	if(tmp_chip!=NULL)
+		return qpnp_lbc_is_usb_chg_plugged_in(tmp_chip);
+	else 
+		return 0;
+}
 static int qpnp_lbc_charger_enable(struct qpnp_lbc_chip *chip, int reason,
 					int enable)
 {
@@ -1347,12 +1356,56 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 	 */
 	return DEFAULT_CAPACITY;
 }
-
-#define DEFAULT_TEMP		250
+int get_vchg(void)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+	
+	if(tmp_chip == NULL)
+		return -1;
+	rc = qpnp_vadc_read(tmp_chip->vadc_dev,P_MUX2_1_1, &results);
+	if (rc) {
+		pr_err("Unable to read temp voltage rc=%d\n", rc);
+		return -1;
+	}
+	pr_debug("vichg is %d\n",(int)results.physical);
+	return (int)results.physical;
+}
+int get_batt_id_volt(void)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+	
+	if(tmp_chip == NULL)
+		return -1;
+	rc = qpnp_vadc_read(tmp_chip->vadc_dev, LR_MUX2_BAT_ID, &results);
+	if (rc) {
+		pr_err("Unable to read batt ID rc=%d\n", rc);
+		return -1;
+	}
+	return (int)results.physical;
+}
+int get_vbus(void)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+	
+	if(tmp_chip == NULL)
+		return -1;
+	rc = qpnp_vadc_read(tmp_chip->vadc_dev,USBIN,&results);
+	if (rc) {
+		pr_err("Unable to read vbus rc=%d\n", rc);
+		return -1;
+	}
+	return (int)results.physical;
+}
+#define DEFAULT_TEMP		-200
+int last_temp = 250;
 static int get_prop_batt_temp(struct qpnp_lbc_chip *chip)
 {
 	int rc = 0;
 	struct qpnp_vadc_result results;
+	int batt_temp = 0;
 
 	if (chip->cfg_use_fake_battery || !get_prop_batt_present(chip))
 		return DEFAULT_TEMP;
@@ -1365,7 +1418,32 @@ static int get_prop_batt_temp(struct qpnp_lbc_chip *chip)
 	pr_debug("get_bat_temp %d, %lld\n", results.adc_code,
 							results.physical);
 
+	batt_temp = (int)results.physical;
+	if(batt_temp > 550)
+	{
+		int retry_c = 0;
+		while (retry_c++ > 4)
+		{
+			msleep(200);
+			rc = qpnp_vadc_read(chip->vadc_dev, LR_MUX1_BATT_THERM, &results);
+			if (rc) {
+				pr_debug("Unable to read batt temperature rc=%d\n", rc);
+				return DEFAULT_TEMP;
+			}
+			pr_warn("battery temperature is too high,try get_bat_temp %d, %lld\n", results.adc_code,
+									results.physical);
+			if(abs(batt_temp - results.physical) > 100)
+				return last_temp;
+		}
+	}
+	last_temp = (int)results.physical;
 	return (int)results.physical;
+}
+int get_batt_temp(void)
+{
+	if(tmp_chip == NULL)
+		return -20;
+	return get_prop_batt_temp(tmp_chip);
 }
 
 static void qpnp_lbc_set_appropriate_current(struct qpnp_lbc_chip *chip)
@@ -3253,7 +3331,7 @@ static int qpnp_lbc_main_probe(struct spmi_device *spmi)
 
 	if (chip->bat_if_base) {
 		chip->batt_present = qpnp_lbc_is_batt_present(chip);
-		chip->batt_psy.name = "battery";
+		chip->batt_psy.name = "qpnp_battery";
 		chip->batt_psy.type = POWER_SUPPLY_TYPE_BATTERY;
 		chip->batt_psy.properties = msm_batt_power_props;
 		chip->batt_psy.num_properties =
@@ -3267,11 +3345,11 @@ static int qpnp_lbc_main_probe(struct spmi_device *spmi)
 		chip->batt_psy.supplied_to = pm_batt_supplied_to;
 		chip->batt_psy.num_supplicants =
 			ARRAY_SIZE(pm_batt_supplied_to);
-		rc = power_supply_register(chip->dev, &chip->batt_psy);
+	/*	rc = power_supply_register(chip->dev, &chip->batt_psy);
 		if (rc < 0) {
 			pr_err("batt failed to register rc=%d\n", rc);
 			goto fail_chg_enable;
-		}
+		}*/
 	}
 
 	if ((chip->cfg_cool_bat_decidegc || chip->cfg_warm_bat_decidegc)
@@ -3341,6 +3419,8 @@ static int qpnp_lbc_main_probe(struct spmi_device *spmi)
 			get_prop_batt_present(chip),
 			get_prop_battery_voltage_now(chip),
 			get_prop_capacity(chip));
+	tmp_chip = chip;
+	max17048_tmp_chip_init = 1;
 
 	return 0;
 
