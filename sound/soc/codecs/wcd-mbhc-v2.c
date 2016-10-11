@@ -9,6 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#define DEBUG
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -631,24 +632,15 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 			(mbhc->mbhc_cfg->linein_th != 0)) {
 				mbhc->mbhc_cb->compute_impedance(mbhc,
 						&mbhc->zl, &mbhc->zr);
+			pr_debug("%s: mbhc->zl %d ohm, mbhc->zr %d ohm\n", __func__, mbhc->zl, mbhc->zr);
 			if ((mbhc->zl > mbhc->mbhc_cfg->linein_th &&
 				mbhc->zl < MAX_IMPED) &&
 				(mbhc->zr > mbhc->mbhc_cfg->linein_th &&
 				 mbhc->zr < MAX_IMPED) &&
-				(jack_type == SND_JACK_HEADPHONE)) {
-				jack_type = SND_JACK_LINEOUT;
-				mbhc->current_plug = MBHC_PLUG_TYPE_HIGH_HPH;
-				if (mbhc->hph_status) {
-					mbhc->hph_status &= ~(SND_JACK_HEADSET |
-							SND_JACK_LINEOUT |
-							SND_JACK_UNSUPPORTED);
-					wcd_mbhc_jack_report(mbhc,
-							&mbhc->headset_jack,
-							mbhc->hph_status,
-							WCD_MBHC_JACK_MASK);
-				}
-				pr_debug("%s: Marking jack type as SND_JACK_LINEOUT\n",
-				__func__);
+				(jack_type == SND_JACK_UNSUPPORTED)) {
+				jack_type = SND_JACK_HEADSET;
+				mbhc->current_plug = MBHC_PLUG_TYPE_HEADSET;
+				mbhc->jiffies_atreport = jiffies;
 			}
 		}
 
@@ -657,7 +649,7 @@ static void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		pr_debug("%s: Reporting insertion %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
-				    (mbhc->hph_status | SND_JACK_MECHANICAL),
+				    (mbhc->hph_status),
 				    WCD_MBHC_JACK_MASK);
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
 	}
@@ -938,6 +930,7 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	bool wrk_complete = false;
 	int pt_gnd_mic_swap_cnt = 0;
 	int no_gnd_mic_swap_cnt = 0;
+	int detect_count=0;
 	bool is_pa_on = false;
 	bool micbias2 = false;
 	bool micbias1 = false;
@@ -1096,6 +1089,10 @@ correct_plug_type:
 			pr_debug("%s: cable is extension cable\n", __func__);
 			plug_type = MBHC_PLUG_TYPE_HIGH_HPH;
 			wrk_complete = true;
+			if (4 ==detect_count)
+                break; 
+                ++detect_count;
+
 		} else {
 			pr_debug("%s: cable might be headset: %d\n", __func__,
 					plug_type);
@@ -1374,7 +1371,6 @@ static int wcd_mbhc_get_button_mask(struct wcd_mbhc *mbhc)
 	int btn;
 
 	btn = mbhc->mbhc_cb->map_btn_code_to_num(mbhc->codec);
-
 	switch (btn) {
 	case 0:
 		mask = SND_JACK_BTN_0;
@@ -1392,14 +1388,15 @@ static int wcd_mbhc_get_button_mask(struct wcd_mbhc *mbhc)
 		mask = SND_JACK_BTN_4;
 		break;
 	case 5:
-		mask = SND_JACK_BTN_5;
-		break;
+        mask = SND_JACK_BTN_5;
+        break;
 	case 6:
-		mask = SND_JACK_BTN_6;
-		break;
-	case 7:
-		mask = SND_JACK_BTN_7;
-		break;
+        mask = SND_JACK_BTN_6;
+        break;
+   	case 7:
+        mask = SND_JACK_BTN_7;
+        break;
+
 	default:
 		break;
 	}
@@ -1687,7 +1684,7 @@ static irqreturn_t wcd_mbhc_btn_press_handler(int irq, void *data)
 	mbhc->buttons_pressed |= mask;
 	mbhc->mbhc_cb->lock_sleep(mbhc, true);
 	if (schedule_delayed_work(&mbhc->mbhc_btn_dwork,
-				msecs_to_jiffies(400)) == 0) {
+				msecs_to_jiffies(700)) == 0) {
 		WARN(1, "Button pressed twice without release event\n");
 		mbhc->mbhc_cb->lock_sleep(mbhc, false);
 	}
@@ -1729,8 +1726,8 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 	if (mbhc->buttons_pressed & WCD_MBHC_JACK_BUTTON_MASK) {
 		ret = wcd_cancel_btn_work(mbhc);
 		if (ret == 0) {
-			pr_debug("%s: Reporting long button release event\n",
-				 __func__);
+			pr_debug("%s: Reporting long button release event,mbhc->buttons_pressed 0x%x\n",
+				 __func__,mbhc->buttons_pressed);
 			wcd_mbhc_jack_report(mbhc, &mbhc->button_jack,
 					0, mbhc->buttons_pressed);
 		} else {
@@ -1738,14 +1735,14 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 				pr_debug("%s: Switch irq kicked in, ignore\n",
 					__func__);
 			} else {
-				pr_debug("%s: Reporting btn press\n",
-					 __func__);
+				pr_debug("%s: Reporting btn press,mbhc->buttons_pressed 0x%x\n",
+					 __func__,mbhc->buttons_pressed);
 				wcd_mbhc_jack_report(mbhc,
 						     &mbhc->button_jack,
 						     mbhc->buttons_pressed,
 						     mbhc->buttons_pressed);
-				pr_debug("%s: Reporting btn release\n",
-					 __func__);
+				pr_debug("%s: Reporting btn release,mbhc->buttons_pressed 0x%x\n",
+					 __func__,mbhc->buttons_pressed);
 				wcd_mbhc_jack_report(mbhc,
 						&mbhc->button_jack,
 						0, mbhc->buttons_pressed);

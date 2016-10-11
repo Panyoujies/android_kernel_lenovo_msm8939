@@ -65,6 +65,10 @@ extern int sysctl_sched_upmigrate_min_nice;
 extern unsigned int sysctl_sched_prefer_idle;
 extern unsigned int sysctl_sched_powerband_limit_pct;
 extern unsigned int sysctl_sched_boost;
+extern unsigned int __read_mostly sysctl_sched_selfish_task_migr_enable;
+extern u64 __read_mostly sysctl_sched_selfish_task_migr_threshold;
+extern unsigned int __read_mostly sysctl_sched_selfish_task_migr_divsor;
+extern unsigned int __read_mostly sysctl_sched_selfish_task_id;
 
 #else /* CONFIG_SCHED_HMP */
 

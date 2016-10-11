@@ -11,6 +11,7 @@
 	soc { };
 	chosen { };
 	aliases { };
+	rkm_log { };
 	memory {
 		#address-cells = <1>;
 		#size-cells = <1>;

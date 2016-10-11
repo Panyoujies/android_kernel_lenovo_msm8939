@@ -47,12 +47,15 @@
 #include <linux/sw_sync.h>
 #include <linux/file.h>
 #include <linux/kthread.h>
+#include <linux/gpio.h>
+#include <asm/io.h>
 
 #include <linux/qcom_iommu.h>
 #include <linux/msm_iommu_domains.h>
 
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
+#include "lcd_interface.h"
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
@@ -68,6 +71,9 @@
 
 #define BLANK_FLAG_LP	FB_BLANK_VSYNC_SUSPEND
 #define BLANK_FLAG_ULP	FB_BLANK_NORMAL
+
+extern int lcd_init_finished;
+struct msm_fb_data_type *mfd_priv;
 
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
@@ -110,6 +116,8 @@ static int mdss_fb_send_panel_event(struct msm_fb_data_type *mfd,
 static void mdss_fb_set_mdp_sync_pt_threshold(struct msm_fb_data_type *mfd);
 static void mdss_panelinfo_to_fb_var(struct mdss_panel_info *pinfo,
 					struct fb_var_screeninfo *var);
+extern struct panel_effect_data lcd_data;
+
 void mdss_fb_no_update_notify_timer_cb(unsigned long data)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)data;
@@ -231,6 +239,14 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 		ret = copy_to_user(argp, &to_user, sizeof(unsigned int));
 	return ret;
 }
+int LCD_ID = 0;
+static int __init board_LCDID_setup(char *lcdid)
+{
+	sscanf(lcdid, "%d", &LCD_ID);
+	printk("##%s: get lcdid from lk: str: %s  to numID: %d\n", __func__, lcdid, LCD_ID);
+	return 1;
+}
+__setup("androidboot.lcdid=", board_LCDID_setup);
 
 static int lcd_backlight_registered;
 
@@ -508,6 +524,24 @@ static ssize_t mdss_fb_get_idle_notify(struct device *dev,
 
 	return ret;
 }
+static ssize_t mdss_panel_set_type(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	unsigned long enable;
+
+	if (kstrtoul(buf, 0, &enable))
+		return -EINVAL;
+
+	if (enable) {
+		mdss_fb_blank_sub(FB_BLANK_UNBLANK, fbi, 1);
+	} else {
+		mdss_fb_blank_sub(FB_BLANK_POWERDOWN, fbi, 1);
+	}
+
+	return count;
+}
+
 
 static ssize_t mdss_fb_get_panel_info(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -680,7 +714,227 @@ static ssize_t mdss_fb_get_doze_mode(struct device *dev,
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", mfd->doze_mode);
 }
+int ISL98608_ID = 1;
+static int __init board_ISL98608ID_setup(char *isl98608id)
+{
+	sscanf(isl98608id, "%d", &ISL98608_ID);
+	printk("##%s: get isl98608id from lk: str: %s  to numID: %d\n", __func__, isl98608id, ISL98608_ID);
+	return 1;
+}
+__setup("androidboot.isl98608id=", board_ISL98608ID_setup);
+static ssize_t lenovo_get_ISL98608_ID(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret;
+         if(ISL98608_ID == 1)
+	    ret = snprintf(buf, PAGE_SIZE, "1\n");
+         else
+	    ret = snprintf(buf, PAGE_SIZE, "2\n");
+	return ret;
+}
 
+static ssize_t mdss_get_panel_name(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret;
+         if(LCD_ID == 1)
+	    ret = snprintf(buf, PAGE_SIZE, "R69006_LH600QH1_LGD_1080_1920_5.2\n");
+         else
+	    ret = snprintf(buf, PAGE_SIZE, "OTM1902C_SS33x0_BOE_1080_1920_5.2\n");
+
+	return ret;
+}
+
+static ssize_t mdss_panel_get_ce(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+	ret = get_effect_index_by_name("ce", &lcd_data);
+	if (ret < 0) {
+		ret = get_effect_index_by_name("饱和度", &lcd_data);
+		if (ret < 0)
+			return -EINVAL;
+	}
+
+	ret = snprintf(buf, PAGE_SIZE, "%d\n", lcd_data.mode->level[ret]);
+	return ret;
+}
+static ssize_t mdss_panel_get_cabc(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+	ret = get_effect_index_by_name("cabc", &lcd_data);
+	if (ret < 0) {
+		ret = get_effect_index_by_name("动态背光", &lcd_data);
+		if (ret < 0)
+			return -EINVAL;
+	}
+
+	ret = snprintf(buf, PAGE_SIZE, "%d\n", lcd_data.mode->level[ret]);
+	return ret;
+}
+static ssize_t mdss_panel_get_dimming(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+
+	ret = snprintf(buf, PAGE_SIZE, "not support\n");
+	return ret;
+}
+static ssize_t mdss_panel_set_cabc(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct hal_panel_ctrl_data ctrl;
+	unsigned long level;
+	int ret;
+
+	if (kstrtoul(buf, 0, &level))
+		return -EINVAL;
+	ret = get_effect_index_by_name("cabc", &lcd_data);
+	if (ret < 0) {
+		ret = get_effect_index_by_name("动态背光", &lcd_data);
+		if (ret < 0)
+			return -EINVAL;
+	}
+	ctrl.index = ret;
+	ctrl.level = level;
+	ctrl.id = SET_EFFECT;
+	ret = handle_lcd_effect_data(mfd, &lcd_data, &ctrl);
+
+	return count;
+}
+
+static ssize_t mdss_panel_set_ce(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct hal_panel_ctrl_data ctrl;
+	unsigned long level;
+	int ret;
+
+	if (kstrtoul(buf, 0, &level))
+		return -EINVAL;
+
+	ret = get_effect_index_by_name("ce", &lcd_data);
+	if (ret < 0) {
+		ret = get_effect_index_by_name("饱和度", &lcd_data);
+		if (ret < 0)
+			return -EINVAL;
+	}
+	ctrl.id = SET_EFFECT;
+	ctrl.index = ret;
+	ctrl.level = level;
+	ret = handle_lcd_effect_data(mfd, &lcd_data, &ctrl);
+
+	return count;
+}
+
+static ssize_t mdss_panel_set_dimming(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	unsigned long mode;
+
+	if (kstrtoul(buf, 0, &mode))
+		return -EINVAL;
+
+	return count;
+}
+static ssize_t mdss_panel_set_effect(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct hal_panel_ctrl_data ctrl;
+	unsigned long data;
+	int index, level, ret;
+
+	if (kstrtoul(buf, 0, &data))
+		return -EINVAL;
+
+	index = (data >> 4) & 0xf;
+	level = data & 0xf;
+	if (index > lcd_data.effect_data->supported_effect)
+		return -EINVAL;
+
+	ctrl.id = SET_EFFECT;
+	ctrl.level = level;
+	ctrl.index = index;
+	ret = handle_lcd_effect_data(mfd, &lcd_data, &ctrl);
+
+	return count;
+}
+
+static ssize_t mdss_panel_get_effect(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	unsigned long index;
+
+	if (kstrtoul(buf, 0, &index))
+		return -EINVAL;
+
+	if (index > lcd_data.effect_data->supported_effect)
+		return -EINVAL;
+
+	return lcd_data.effect_data->effect[index].level;
+}
+
+
+static ssize_t mdss_panel_set_mode(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)fbi->par;
+	struct hal_panel_ctrl_data ctrl;
+	unsigned long index;
+	int ret;
+
+	if (kstrtoul(buf, 0, &index))
+		return -EINVAL;
+
+	if (index > lcd_data.mode_data->supported_mode)
+		return -EINVAL;
+
+	ctrl.id = SET_MODE;
+	ctrl.mode = index;
+	printk("%s id: %d index %ld\n", __func__, ctrl.id, index);
+	ret = handle_lcd_effect_data(mfd, &lcd_data, &ctrl);
+
+	return count;
+}
+
+
+static ssize_t mdss_panel_get_mode(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+	int index = lcd_data.mode_data->current_mode;
+
+	ret = snprintf(buf, PAGE_SIZE, "%s\n", lcd_data.mode_data->mode[index].name);
+
+	return ret;
+}
+static ssize_t mdss_get_lcd_supported_effect(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+	int i;
+
+	for (i = 0; i < lcd_data.effect_data->supported_effect; i++) {
+		ret += snprintf(buf + ret, PAGE_SIZE, "%s\n", lcd_data.effect_data->effect[i].name);
+	}
+
+	return ret;
+}
+
+static ssize_t mdss_get_lcd_supported_mode(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	ssize_t ret = 0;
+	int i;
+
+	for (i = 0; i < lcd_data.mode_data->supported_mode; i++) {
+		ret += snprintf(buf + ret, PAGE_SIZE, "%s\n", lcd_data.mode_data->mode[i].name);
+	}
+
+	return ret;
+}
+
+
+static DEVICE_ATTR(msm_panel_ctrl, S_IRUGO | S_IWUSR | S_IWGRP, NULL, mdss_panel_set_type);
 static DEVICE_ATTR(msm_fb_type, S_IRUGO, mdss_fb_get_type, NULL);
 static DEVICE_ATTR(msm_fb_split, S_IRUGO | S_IWUSR, mdss_fb_show_split,
 					mdss_fb_store_split);
@@ -689,6 +943,16 @@ static DEVICE_ATTR(idle_time, S_IRUGO | S_IWUSR | S_IWGRP,
 	mdss_fb_get_idle_time, mdss_fb_set_idle_time);
 static DEVICE_ATTR(idle_notify, S_IRUGO, mdss_fb_get_idle_notify, NULL);
 static DEVICE_ATTR(msm_fb_panel_info, S_IRUGO, mdss_fb_get_panel_info, NULL);
+static DEVICE_ATTR(lcd_name, S_IRUGO | S_IWUSR | S_IWGRP,  mdss_get_panel_name, NULL);
+static DEVICE_ATTR(ce_onoff, S_IRUGO | S_IWUSR | S_IWGRP, mdss_panel_get_ce, mdss_panel_set_ce);
+static DEVICE_ATTR(cabc_onoff, S_IRUGO | S_IWUSR | S_IWGRP, mdss_panel_get_cabc, mdss_panel_set_cabc);
+static DEVICE_ATTR(dimming_onoff, S_IRUGO | S_IWUSR | S_IWGRP, mdss_panel_get_dimming, mdss_panel_set_dimming);
+static DEVICE_ATTR(lcd_effect, S_IRUGO | S_IWUSR | S_IWGRP, mdss_panel_get_effect, mdss_panel_set_effect);
+static DEVICE_ATTR(lcd_mode, S_IRUGO | S_IWUSR | S_IWGRP, mdss_panel_get_mode, mdss_panel_set_mode);
+static DEVICE_ATTR(lcd_supported_effect, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_lcd_supported_effect, NULL);
+static DEVICE_ATTR(lcd_supported_mode, S_IRUGO | S_IWUSR | S_IWGRP, mdss_get_lcd_supported_mode, NULL);
+//static DEVICE_ATTR(lcd_test_wakeup, S_IRUGO | S_IWUSR | S_IWGRP, NULL, mdss_lcd_test_wakeup);
+//static DEVICE_ATTR(lcd_led_max_current, S_IRUGO | S_IWUSR | S_IWGRP, NULL, mdss_lcd_led_max_current);
 static DEVICE_ATTR(msm_fb_src_split_info, S_IRUGO, mdss_fb_get_src_split_info,
 	NULL);
 static DEVICE_ATTR(msm_fb_thermal_level, S_IRUGO | S_IWUSR,
@@ -697,10 +961,23 @@ static DEVICE_ATTR(always_on, S_IRUGO | S_IWUSR | S_IWGRP,
 	mdss_fb_get_doze_mode, mdss_fb_set_doze_mode);
 static DEVICE_ATTR(msm_fb_panel_status, S_IRUGO,
 	mdss_fb_get_panel_status, NULL);
+static DEVICE_ATTR(isl98608_id, S_IRUGO | S_IWUSR | S_IWGRP,  lenovo_get_ISL98608_ID, NULL);
+	
+
 static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_type.attr,
 	&dev_attr_msm_fb_split.attr,
 	&dev_attr_show_blank_event.attr,
+	&dev_attr_msm_panel_ctrl.attr,
+	&dev_attr_lcd_name.attr,
+	&dev_attr_ce_onoff.attr,
+	&dev_attr_cabc_onoff.attr,
+	&dev_attr_dimming_onoff.attr,
+	&dev_attr_lcd_supported_effect.attr,
+	&dev_attr_lcd_supported_mode.attr,
+	//&dev_attr_lcd_test_wakeup.attr,
+	&dev_attr_lcd_effect.attr,
+	&dev_attr_lcd_mode.attr,
 	&dev_attr_idle_time.attr,
 	&dev_attr_idle_notify.attr,
 	&dev_attr_msm_fb_panel_info.attr,
@@ -708,6 +985,7 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_msm_fb_thermal_level.attr,
 	&dev_attr_always_on.attr,
 	&dev_attr_msm_fb_panel_status.attr,
+	&dev_attr_isl98608_id.attr,
 	NULL,
 };
 
@@ -740,6 +1018,60 @@ static void mdss_fb_shutdown(struct platform_device *pdev)
 	sysfs_notify(&mfd->fbi->dev->kobj, NULL, "show_blank_event");
 	unlock_fb_info(mfd->fbi);
 }
+#if 0
+#define LCD_ID			936
+#define LCD_NOT_EXIST	0
+#define LCD_EXIST		1
+extern int gp_set_config(unsigned config);
+int lcd_is_connected(int gpio)
+{
+	int rc = 0;
+	int lcd_connect_state = 0;
+
+	rc = gpio_request(gpio, "lcd_id");
+	if (rc < 0) {
+		pr_err("%s: gpio_request lcd_id failed!",
+				__func__);
+	}
+
+	rc = gp_set_config(GPIO_CFG(34, 0,
+				GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN,
+				GPIO_CFG_2MA));
+	if (rc < 0) {
+		pr_err("%s: unable to config lenovo_lcd_id rc:%d\n", __func__, rc);
+		gpio_free(gpio);
+		goto done;
+	}
+	mdelay(1);
+	rc = gpio_get_value(gpio);
+	pr_err("%s %d lcd id: %d\n", __func__, __LINE__, rc);
+	if (rc == 0) {
+		rc = gp_set_config(GPIO_CFG(34, 0,
+					GPIO_CFG_INPUT, GPIO_CFG_PULL_UP,
+					GPIO_CFG_2MA));
+		if (rc < 0) {
+			pr_err("%s: unable to config lenovo_lcd_id\n", __func__);
+			gpio_free(gpio);
+			goto done;
+		}
+
+	mdelay(1);
+		rc = gpio_get_value(gpio);
+		pr_err("%s %d lcd id: %d\n", __func__, __LINE__, rc);
+		if (rc)
+			lcd_connect_state = LCD_NOT_EXIST;
+		else
+			lcd_connect_state = LCD_EXIST;
+	} else {
+		lcd_connect_state = LCD_EXIST;
+	}
+	pr_err("#####%s: LCD id connection = %d#########\n", __func__, lcd_connect_state);
+
+	gpio_free(gpio);
+done:
+	return lcd_connect_state;
+}
+#endif
 
 static int mdss_fb_probe(struct platform_device *pdev)
 {
@@ -809,6 +1141,8 @@ static int mdss_fb_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (mfd->index == 0)
+		mfd_priv = mfd;
 	mfd->pdev = pdev;
 	mfd->split_mode = MDP_SPLIT_MODE_NONE;
 	if (pdata->next)
@@ -3396,6 +3730,27 @@ static int __ioctl_wait_idle(struct msm_fb_data_type *mfd, u32 cmd)
 	return ret;
 }
 
+static int mdss_fb_panel_effect(struct msm_fb_data_type *mfd,
+		unsigned long *argp)
+{
+	int ret, rc;
+	struct hal_panel_ctrl_data data;
+	ret = copy_from_user(&data, argp,
+			sizeof(data));
+	if (ret) {
+		pr_err("%s:copy_from_user failed", __func__);
+		return ret;
+	}
+
+	ret = handle_lcd_effect_data(mfd, &lcd_data, &data);
+	rc = copy_to_user(argp, &data, sizeof(data));
+	if (rc) {
+		pr_err("%s:copy_to_user failed", __func__);
+		return rc;
+	}
+
+	return ret;
+}
 /*
  * mdss_fb_do_ioctl() - MDSS Framebuffer ioctl function
  * @info:	pointer to framebuffer info
@@ -3495,6 +3850,9 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 
 		ret = mdss_fb_lpm_enable(mfd, dsi_mode);
+		break;
+	case MSMFB_PANEL_EFFECT:
+		ret = mdss_fb_panel_effect(mfd, argp);
 		break;
 
 	default:

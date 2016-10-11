@@ -557,6 +557,8 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 	u8 pon_rt_sts = 0, pon_rt_bit = 0;
 	u32 key_status;
 
+	/* yangjq, 20130628, Add log for PM */
+	printk(KERN_INFO "%s(), pon_type=%d\n", __func__, pon_type);
 	cfg = qpnp_get_cfg(pon, pon_type);
 	if (!cfg)
 		return -EINVAL;
@@ -594,6 +596,8 @@ qpnp_pon_input_dispatch(struct qpnp_pon *pon, u32 pon_type)
 					cfg->key_code, pon_rt_sts);
 	key_status = pon_rt_sts & pon_rt_bit;
 
+	/* yangjq, 20130628, Add log for PM */
+	printk(KERN_INFO "%s(), cfg->key_code=%d,%d\n", __func__, cfg->key_code,key_status);
 	/* simulate press event in case release event occured
 	 * without a press event
 	 */
@@ -615,6 +619,8 @@ static irqreturn_t qpnp_kpdpwr_irq(int irq, void *_pon)
 	int rc;
 	struct qpnp_pon *pon = _pon;
 
+	/* yangjq, 20130628, Add log for PM */
+	printk(KERN_INFO "%s(), irq=%d\n", __func__, irq);
 	rc = qpnp_pon_input_dispatch(pon, PON_KPDPWR);
 	if (rc)
 		dev_err(&pon->spmi->dev, "Unable to send input event\n");
@@ -640,6 +646,7 @@ static irqreturn_t qpnp_resin_irq(int irq, void *_pon)
 
 static irqreturn_t qpnp_kpdpwr_resin_bark_irq(int irq, void *_pon)
 {
+	pr_info("kpdpwr reset bark irq is comming..\n");
 	return IRQ_HANDLED;
 }
 
@@ -1473,6 +1480,197 @@ static void qpnp_pon_debugfs_remove(struct spmi_device *spmi)
 {}
 #endif
 
+/*
+set the emergent mode by press power key+vol down 7 seconds
+	S1 TIEMR: 6s
+	S2 TIMER: 1s
+	S2 CNTL : warm reset
+	S2 CNTL2: enable
+*/
+int qpnp_pon_set_emergent_restart_mode(void)
+{
+	struct qpnp_pon *pon = sys_reset_dev;
+	int rc = 0;
+
+	if (!pon) {
+		pr_err("%s:qpnp power-on driver is not initialized\n",__func__);
+		return -EPROBE_DEFER;
+	}
+
+	/* set the s1 timer 6s */
+	rc = qpnp_pon_masked_write(pon, QPNP_PON_KPDPWR_RESIN_S1_TIMER(pon->base),
+				QPNP_PON_S1_TIMER_MASK, 0xD);
+	if (rc)
+		dev_err(&pon->spmi->dev,
+				"Unable to write to addr=%x, rc(%d)\n",
+				QPNP_PON_KPDPWR_RESIN_S1_TIMER(pon->base), rc);
+
+	/* set the s2 timer 1s */
+	rc = qpnp_pon_masked_write(pon, QPNP_PON_KPDPWR_RESIN_S2_TIMER(pon->base),
+			QPNP_PON_S2_TIMER_MASK, 6);
+	if (rc)
+		dev_err(&pon->spmi->dev,
+				"Unable to write to addr=%x, rc(%d)\n",
+				QPNP_PON_KPDPWR_RESIN_S2_TIMER(pon->base), rc);
+
+	/* set the cntl is warm restart */
+	rc = qpnp_pon_masked_write(pon, QPNP_PON_KPDPWR_RESIN_S2_CNTL(pon->base),
+			QPNP_PON_S2_CNTL_TYPE_MASK, 1);
+	if (rc)
+		dev_err(&pon->spmi->dev,
+				"Unable to write to addr=%x, rc(%d)\n",
+				QPNP_PON_KPDPWR_RESIN_S2_CNTL(pon->base), rc);
+
+	/* set the cntl2 is enable*/
+	rc = qpnp_pon_masked_write(pon, QPNP_PON_KPDPWR_RESIN_S2_CNTL2(pon->base),
+			QPNP_PON_S2_CNTL_EN, QPNP_PON_S2_CNTL_EN);
+	if (rc)
+		dev_err(&pon->spmi->dev,
+				"Unable to write to addr=%x, rc(%d)\n",
+				QPNP_PON_KPDPWR_RESIN_S2_CNTL2(pon->base), rc);
+
+	pr_info("%s: set the emergent mode over\n",__func__);
+	return rc;
+}
+
+#define ADDR_QPNP_PON_POWEROFF_COUNTER 0x40B4
+#define ADDR_QPNP_PON_POWEROFF_FLAG 0x40B5
+#define ADDR_QPNP_PON_RESET_TYPE 0x40B6
+
+static u8 reg_val_poweroff_counter;
+static u8 reg_val_poweroff_flag;
+static u8 reg_val_poweroff_reset_type;
+
+/*
+Desc:print the poweroff or reset counter and flag
+when boot
+  1. read the counter and flags
+  2. counter will add 1 to indicate running status
+  3. write back the new count to count reg and flag reg
+  4. the counnt max value is 0x7F and it can wrap
+*/
+static void qpnp_poweroff_reg_init(void)
+{
+	struct qpnp_pon *pon = sys_reset_dev;
+	int rc = 0;
+
+	if (!pon) {
+		pr_err("%s:qpnp power-on driver is not initialized\n",__func__);
+		return ;
+	}
+
+	//read last power off counter
+	rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid, ADDR_QPNP_PON_POWEROFF_COUNTER, &reg_val_poweroff_counter,1);
+	if (rc) {
+		dev_err(&pon->spmi->dev,
+			"Unable to read from addr=%x, rc(%d)\n", ADDR_QPNP_PON_POWEROFF_COUNTER, rc);
+		return ;
+	}
+	//read last poweroff flag
+	rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid, ADDR_QPNP_PON_POWEROFF_FLAG, &reg_val_poweroff_flag, 1);
+	if (rc) {
+		dev_err(&pon->spmi->dev,
+			"Unable to read from addr=%x, rc(%d)\n", ADDR_QPNP_PON_POWEROFF_FLAG, rc);
+		return ;
+	}
+	pr_info("last poweroff count=0x%x flag=0x%x\n",(unsigned int)reg_val_poweroff_counter,(unsigned int)reg_val_poweroff_flag);
+
+	// abnormal power off or reset cycle, skip 2, else skip 1, make sure the power off value odd during boot
+	if (reg_val_poweroff_counter & 1) {
+		reg_val_poweroff_counter += 2;
+	} else
+		reg_val_poweroff_counter += 1;
+	reg_val_poweroff_counter = reg_val_poweroff_counter & 0x7F;
+	reg_val_poweroff_flag = reg_val_poweroff_counter;
+
+	//write last power off counter
+	rc = spmi_ext_register_writel(pon->spmi->ctrl, pon->spmi->sid, ADDR_QPNP_PON_POWEROFF_COUNTER, &reg_val_poweroff_counter,1);
+	if (rc) {
+		dev_err(&pon->spmi->dev,
+			"Unable to read from addr=%x, rc(%d)\n", ADDR_QPNP_PON_POWEROFF_COUNTER, rc);
+		return ;
+	}
+	//write last power off flag
+	rc = spmi_ext_register_writel(pon->spmi->ctrl, pon->spmi->sid, ADDR_QPNP_PON_POWEROFF_FLAG, &reg_val_poweroff_flag,1);
+	if (rc) {
+		dev_err(&pon->spmi->dev,
+			"Unable to read from addr=%x, rc(%d)\n", ADDR_QPNP_PON_POWEROFF_FLAG, rc);
+		return ;
+	}
+	pr_info("new poweroff count=0x%x flag=0x%x\n",(unsigned int)reg_val_poweroff_counter,(unsigned int)reg_val_poweroff_flag);
+
+
+	//read last power off reset_type
+        rc = spmi_ext_register_readl(pon->spmi->ctrl, pon->spmi->sid, ADDR_QPNP_PON_RESET_TYPE, &reg_val_poweroff_reset_type,1);
+        if (rc) {
+                dev_err(&pon->spmi->dev,
+                        "Unable to read from addr=%x, rc(%d)\n", ADDR_QPNP_PON_RESET_TYPE, rc);
+                return ;
+        }
+	pr_info("poweroff reset_type=0x%x\n",(unsigned int)reg_val_poweroff_reset_type);
+	reg_val_poweroff_reset_type = 0;
+	//write/clear last power off reset_type
+	rc = spmi_ext_register_writel(pon->spmi->ctrl, pon->spmi->sid, ADDR_QPNP_PON_RESET_TYPE, &reg_val_poweroff_reset_type,1);
+        if (rc) {
+                dev_err(&pon->spmi->dev,
+                        "Unable to read from addr=%x, rc(%d)\n", ADDR_QPNP_PON_RESET_TYPE, rc);
+                return ;
+        }
+}
+
+/*
+Desc: record the power off or reset info
+  when reboot or power off
+  1. counter will add 1,and update the counter reg with new val
+  2. according the poweroff flag, it will update flag reg only with flag
+*/
+void qpnp_poweroff_last_reg(int poweroff)
+{
+	struct qpnp_pon *pon = sys_reset_dev;
+	int rc = 0;
+
+	if (!pon) {
+		pr_err("%s:qpnp power-on driver is not initialized\n",__func__);
+		return ;
+	}
+
+	reg_val_poweroff_counter += 1;
+	reg_val_poweroff_counter = reg_val_poweroff_counter & 0x7F;
+
+	//write last power off counter
+	rc = spmi_ext_register_writel(pon->spmi->ctrl, pon->spmi->sid, ADDR_QPNP_PON_POWEROFF_COUNTER, &reg_val_poweroff_counter,1);
+	if (rc) {
+		dev_err(&pon->spmi->dev,
+			"Unable to read from addr=%x, rc(%d)\n", ADDR_QPNP_PON_POWEROFF_COUNTER, rc);
+		return ;
+	}
+
+	if (poweroff) {
+		reg_val_poweroff_flag =reg_val_poweroff_flag | 0x80;
+		//write last power off flag
+		rc = spmi_ext_register_writel(pon->spmi->ctrl, pon->spmi->sid, ADDR_QPNP_PON_POWEROFF_FLAG, &reg_val_poweroff_flag,1);
+		if (rc) {
+			dev_err(&pon->spmi->dev,
+				"Unable to read from addr=%x, rc(%d)\n", ADDR_QPNP_PON_POWEROFF_FLAG, rc);
+			return ;
+		}
+	}
+	pr_info("poweroff count=0x%x flag=0x%x\n",(unsigned int)reg_val_poweroff_counter,(unsigned int)reg_val_poweroff_flag);
+}
+
+static void print_pmic_poweron_register(struct qpnp_pon *pon)
+{
+	u8 pon_data[160];
+	int i,j=0;
+	printk(KERN_ERR "%s: poweron registers:\n",__func__);
+
+	for (i=0x800; i<=0x880; i++,j++) {
+		spmi_ext_register_readl(pon->spmi->ctrl,pon->spmi->sid,i,&pon_data[j],1);
+	}
+
+	print_hex_dump(KERN_ERR, "poweron reg: ", DUMP_PREFIX_OFFSET, 16, 1, pon_data, 129, false);
+}
+
 static int qpnp_pon_probe(struct spmi_device *spmi)
 {
 	struct qpnp_pon *pon;
@@ -1685,6 +1883,10 @@ static int qpnp_pon_probe(struct spmi_device *spmi)
 					"qcom,store-hard-reset-reason");
 
 	qpnp_pon_debugfs_init(spmi);
+
+	print_pmic_poweron_register(pon);
+	qpnp_poweroff_reg_init();
+
 	return rc;
 }
 

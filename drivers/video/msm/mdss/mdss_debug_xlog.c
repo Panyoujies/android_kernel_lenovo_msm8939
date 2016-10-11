@@ -77,6 +77,7 @@ int mdss_create_xlog_debug(struct mdss_debug_data *mdd)
 			    &mdd->logd.panic_on_err);
 	debugfs_create_bool("reg_dump", 0644, mdd->logd.xlog,
 			    &mdd->logd.enable_reg_dump);
+
 	return 0;
 }
 

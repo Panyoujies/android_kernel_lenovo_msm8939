@@ -25,6 +25,7 @@
 
 #include <asm/setup.h>  /* for COMMAND_LINE_SIZE */
 #include <asm/page.h>
+#include <asm/le_rkm.h>
 
 /**
  * of_fdt_is_compatible - Return true if given node from the given blob has
@@ -957,6 +958,11 @@ bool __init early_init_dt_scan(void *params)
 
 	/* Retrieve various information from the /chosen node */
 	of_scan_flat_dt(early_init_dt_scan_chosen, boot_command_line);
+
+#ifdef CONFIG_LENOVO_DEBUG_RKM
+	/* Retrieve various information from the /rkm_log node */
+	of_scan_flat_dt(early_init_dt_scan_boot_log,NULL);
+#endif
 
 	/* Initialize {size,address}-cells info */
 	of_scan_flat_dt(early_init_dt_scan_root, NULL);

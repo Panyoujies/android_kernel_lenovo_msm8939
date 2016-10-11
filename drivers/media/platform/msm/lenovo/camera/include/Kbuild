@@ -1,0 +1,4 @@
+# UAPI Header export list
+header-y += lenovo_media/
+header-y += lenovo_soc/
+

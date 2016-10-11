@@ -95,7 +95,7 @@ module_param(lpm_disconnect_thresh , uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(lpm_disconnect_thresh,
 	"Delay before entering LPM on USB disconnect");
 
-static bool floated_charger_enable;
+static bool floated_charger_enable = true;
 module_param(floated_charger_enable , bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(floated_charger_enable,
 	"Whether to enable floated charger");
@@ -120,6 +120,7 @@ static struct power_supply *psy;
 
 static bool aca_id_turned_on;
 static bool legacy_power_supply;
+int max77819_otg_mode = 0;
 static inline bool aca_enabled(void)
 {
 #ifdef CONFIG_USB_MSM_ACA
@@ -1934,6 +1935,7 @@ static void msm_otg_set_online_status(struct msm_otg *motg)
 		dev_dbg(motg->phy.dev, "error setting power supply property\n");
 }
 
+extern void notify_max77819_charger_current(int cc_uA);
 static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 {
 	struct usb_gadget *g = motg->phy.otg->gadget;
@@ -1963,7 +1965,8 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 	if (motg->cur_power == mA)
 		return;
 
-	dev_info(motg->phy.dev, "Avail curr from USB = %u\n", mA);
+	dev_info(motg->phy.dev, "Avail curr from USB = %u,charger type is %d\n", mA,motg->chg_type);
+	notify_max77819_charger_current(mA*1000);
 	msm_otg_dbg_log_event(&motg->phy, "AVAIL CURR FROM USB",
 			mA, motg->chg_type);
 
@@ -2109,6 +2112,7 @@ out:
 	return NOTIFY_OK;
 }
 
+extern void max77819_charger_otg(bool enable);
 static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 {
 	int ret;
@@ -2130,6 +2134,8 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 		return;
 	}
 
+	max77819_charger_otg(on);
+	max77819_otg_mode = on;
 	/*
 	 * if entering host mode tell the charger to not draw any current
 	 * from usb before turning on the boost.
@@ -2138,14 +2144,14 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 	 */
 	if (on) {
 		msm_otg_notify_host_mode(motg, on);
-		ret = regulator_enable(vbus_otg);
+	//	ret = regulator_enable(vbus_otg);
 		if (ret) {
 			pr_err("unable to enable vbus_otg\n");
 			return;
 		}
 		vbus_is_on = true;
 	} else {
-		ret = regulator_disable(vbus_otg);
+	//	ret = regulator_disable(vbus_otg);
 		if (ret) {
 			pr_err("unable to disable vbus_otg\n");
 			return;
@@ -4573,7 +4579,7 @@ otg_get_prop_usbin_voltage_now(struct msm_otg *motg)
 		return results.physical;
 	}
 }
-
+extern int is_charger_plug_in(void);
 static int otg_power_get_property_usb(struct power_supply *psy,
 				  enum power_supply_property psp,
 				  union power_supply_propval *val)
@@ -4597,7 +4603,8 @@ static int otg_power_get_property_usb(struct power_supply *psy,
 		break;
 	/* Reflect USB enumeration */
 	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = motg->online;
+//		val->intval = motg->online;
+		val->intval = is_charger_plug_in();//motg->online;
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = psy->type;
@@ -4709,6 +4716,7 @@ static int otg_power_property_is_writeable_usb(struct power_supply *psy,
 
 static char *otg_pm_power_supplied_to[] = {
 	"battery",
+	"ac",
 };
 
 static enum power_supply_property otg_pm_power_props_usb[] = {
@@ -5899,7 +5907,7 @@ static int msm_otg_probe(struct platform_device *pdev)
 	}
 
 	motg->usb_psy.name = "usb";
-	motg->usb_psy.type = POWER_SUPPLY_TYPE_USB;
+	motg->usb_psy.type = POWER_SUPPLY_TYPE_USB_DCP;
 	motg->usb_psy.supplied_to = otg_pm_power_supplied_to;
 	motg->usb_psy.num_supplicants = ARRAY_SIZE(otg_pm_power_supplied_to);
 	motg->usb_psy.properties = otg_pm_power_props_usb;

@@ -187,6 +187,39 @@ static int system_suspend_handler(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
+static ssize_t show_pp_helper(struct kobject *kobj,
+                struct kobj_attribute *attr, char *buf)
+{
+        return snprintf(buf, 128, "%s", rq_info.helper_data);
+}
+
+static ssize_t store_pp_helper(struct kobject *kobj,
+                                       struct kobj_attribute *attr,
+                                       const char *buf, size_t count)
+{
+    snprintf(rq_info.helper_data, 128, "%s", buf);
+    sysfs_notify(rq_info.kobj, NULL, "pp_helper");
+        return count;
+}
+static struct kobj_attribute pp_helper_attr =
+        __ATTR(pp_helper, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP,
+    show_pp_helper, store_pp_helper);
+
+#define HW_GPIO_20 20
+#define HW_GPIO_21 21
+#define HW_GPIO_69 69
+static ssize_t hwid_show(struct kobject *kobj,
+                struct kobj_attribute *attr, char *buf)
+{
+    int data = 0;
+    extern int tlmm_get_inout(unsigned gpio);
+    data = tlmm_get_inout(HW_GPIO_20);
+    data = (data << 1) | tlmm_get_inout(HW_GPIO_69);
+    data = (data << 1) | tlmm_get_inout(HW_GPIO_21);
+
+        return snprintf(buf, 64, "%d", data);
+}
+static struct kobj_attribute hwid_attr = __ATTR_RO(hwid);
 
 static ssize_t hotplug_disable_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
@@ -303,6 +336,8 @@ static struct attribute *rq_attrs[] = {
 	&run_queue_avg_attr.attr,
 	&run_queue_poll_ms_attr.attr,
 	&hotplug_disabled_attr.attr,
+	&pp_helper_attr.attr,
+	&hwid_attr.attr,
 	NULL,
 };
 
@@ -315,6 +350,7 @@ static int init_rq_attribs(void)
 	int err;
 
 	rq_info.rq_avg = 0;
+	rq_info.helper_data[0] = '0';
 	rq_info.attr_group = &rq_attr_group;
 
 	/* Create /sys/devices/system/cpu/cpu0/rq-stats/... */
