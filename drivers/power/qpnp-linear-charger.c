@@ -1439,6 +1439,12 @@ static int get_prop_batt_temp(struct qpnp_lbc_chip *chip)
 	last_temp = (int)results.physical;
 	return (int)results.physical;
 }
+int get_batt_temp(void)
+{
+	if(tmp_chip == NULL)
+		return -20;
+	return get_prop_batt_temp(tmp_chip);
+}
 
 static void qpnp_lbc_set_appropriate_current(struct qpnp_lbc_chip *chip)
 {
