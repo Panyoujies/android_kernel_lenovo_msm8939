@@ -2811,9 +2811,10 @@ static void sdhci_msm_set_clock(struct sdhci_host *host, unsigned int clock)
 	}
 
 	rc = sdhci_msm_prepare_clocks(host, true);
-	if (rc)
+	if (rc) {
+		pr_err("%s:sdhci_msm_prepare_clocks return %d by maxina\n", __func__, rc);
 		return;
-
+	}
 	curr_pwrsave = !!(readl_relaxed(host->ioaddr + CORE_VENDOR_SPEC) &
 			  CORE_CLK_PWRSAVE);
 	if ((clock > 400000) &&
@@ -2924,7 +2925,9 @@ static void sdhci_msm_set_clock(struct sdhci_host *host, unsigned int clock)
 	}
 	mb();
 
-	if (sup_clock != msm_host->clk_rate) {
+	pr_debug("%s:sup_clock=%d,msm_host->clk_rate=%d. by maxina\n",
+			__func__, sup_clock, msm_host->clk_rate);
+	if (sup_clock != msm_host->clk_rate || sup_clock == 400000) {
 		pr_debug("%s: %s: setting clk rate to %u\n",
 				mmc_hostname(host->mmc), __func__, sup_clock);
 		rc = clk_set_rate(msm_host->clk, sup_clock);

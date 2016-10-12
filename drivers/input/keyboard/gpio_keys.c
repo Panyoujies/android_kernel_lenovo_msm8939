@@ -30,7 +30,9 @@
 #include <linux/of_gpio.h>
 #include <linux/spinlock.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/wakelock.h>
 
+static struct wake_lock camera_wakelock;
 struct gpio_button_data {
 	const struct gpio_keys_button *button;
 	struct input_dev *input;
@@ -276,8 +278,22 @@ ATTR_SHOW_FN(disabled_switches, EV_SW, true);
  * /sys/devices/platform/gpio-keys/keys [ro]
  * /sys/devices/platform/gpio-keys/switches [ro]
  */
+
+static ssize_t camera_key_show_state(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	if (gpio_get_value_cansleep(938))
+		return snprintf(buf, PAGE_SIZE, "764\n");
+	else if (gpio_get_value_cansleep(1016))
+		return snprintf(buf, PAGE_SIZE, "765\n");
+	else
+		return snprintf(buf, PAGE_SIZE, "0\n");
+}
+
+
+
 static DEVICE_ATTR(keys, S_IRUGO, gpio_keys_show_keys, NULL);
 static DEVICE_ATTR(switches, S_IRUGO, gpio_keys_show_switches, NULL);
+static DEVICE_ATTR(camera_key, S_IRUGO, camera_key_show_state, NULL);
 
 #define ATTR_STORE_FN(name, type)					\
 static ssize_t gpio_keys_store_##name(struct device *dev,		\
@@ -313,6 +329,7 @@ static DEVICE_ATTR(disabled_switches, S_IWUSR | S_IRUGO,
 		   gpio_keys_store_disabled_switches);
 
 static struct attribute *gpio_keys_attrs[] = {
+	&dev_attr_camera_key.attr,
 	&dev_attr_keys.attr,
 	&dev_attr_switches.attr,
 	&dev_attr_disabled_keys.attr,
@@ -330,12 +347,26 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	struct input_dev *input = bdata->input;
 	unsigned int type = button->type ?: EV_KEY;
 	int state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
+	static int keycode = 0;
 
 	if (type == EV_ABS) {
 		if (state)
 			input_event(input, type, button->code, button->value);
 	} else {
-		input_event(input, type, button->code, !!state);
+		if ((button->code == 764) || (button->code == 765)) {
+			if ((state) && (keycode != button->code)) {
+				input_event(input, type, button->code, !!state);
+				input_sync(input);
+				input_event(input, type, button->code, !state);
+				keycode = button->code;
+			} else
+				pr_debug("duplicated key keycode = %d button->code =%d state =%d\n", keycode, button->code, state);
+		} else {
+			if (button->code == 766)
+				wake_lock_timeout(&camera_wakelock, 1*HZ);
+			input_event(input, type, button->code, !!state);
+			pr_debug("#######button->code =%d state =%d\n", button->code, state);
+		}
 	}
 	input_sync(input);
 }
@@ -814,6 +845,7 @@ static int gpio_keys_probe(struct platform_device *pdev)
 		goto fail3;
 	}
 
+	wake_lock_init(&camera_wakelock,WAKE_LOCK_SUSPEND,"camera_wakelock");
 	device_init_wakeup(&pdev->dev, wakeup);
 
 	return 0;
@@ -931,7 +963,7 @@ static int gpio_keys_resume(struct device *dev)
 	if (error)
 		return error;
 
-	gpio_keys_report_state(ddata);
+	//gpio_keys_report_state(ddata);
 	return 0;
 }
 #endif

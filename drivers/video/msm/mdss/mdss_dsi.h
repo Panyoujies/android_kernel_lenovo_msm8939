@@ -151,7 +151,7 @@ enum dsi_pm_type {
 #define DSI_CMD_DST_FORMAT_RGB666	7
 #define DSI_CMD_DST_FORMAT_RGB888	8
 
-#define DSI_INTR_DESJEW_MASK			BIT(31)
+#define DSI_INTR_DESJEW_MASK                   BIT(31)
 #define DSI_INTR_DYNAMIC_REFRESH_MASK		BIT(29)
 #define DSI_INTR_DYNAMIC_REFRESH_DONE		BIT(28)
 #define DSI_INTR_ERROR_MASK		BIT(25)
@@ -166,7 +166,6 @@ enum dsi_pm_type {
 #define DSI_INTR_CMD_DMA_DONE		BIT(0)
 /* Update this if more interrupt masks are added in future chipsets */
 #define DSI_INTR_TOTAL_MASK		0x2222AA02
-
 #define DSI_INTR_MASK_ALL	\
 		(DSI_INTR_DESJEW_MASK | \
 		DSI_INTR_DYNAMIC_REFRESH_MASK | \
@@ -339,7 +338,10 @@ struct mdss_dsi_ctrl_pdata {
 	int irq_cnt;
 	int disp_te_gpio;
 	int rst_gpio;
+	int disp_lcd_id;
 	int disp_en_gpio;
+	int disp_vsp_gpio;
+	int disp_vsn_gpio;
 	int bklt_en_gpio;
 	int mode_gpio;
 	int bklt_ctrl;	/* backlight ctrl */
@@ -393,6 +395,7 @@ struct mdss_dsi_ctrl_pdata {
 	int mdp_busy;
 	struct mutex mutex;
 	struct mutex cmd_mutex;
+	struct mutex cmdlist_mutex;
 	struct mutex clk_lane_mutex;
 
 	u32 ulps_clamp_ctrl_off;
@@ -401,6 +404,7 @@ struct mdss_dsi_ctrl_pdata {
 	bool core_power;
 	bool mmss_clamp;
 	bool timing_db_mode;
+	bool burst_mode_enabled;
 
 	struct dsi_buf tx_buf;
 	struct dsi_buf rx_buf;
@@ -480,7 +484,7 @@ void mdss_dsi_phy_sw_reset(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_dsi_phy_init(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_dsi_ctrl_init(struct device *ctrl_dev,
 			struct mdss_dsi_ctrl_pdata *ctrl);
-int mdss_dsi_cmd_mdp_busy(struct mdss_dsi_ctrl_pdata *ctrl);
+void mdss_dsi_cmd_mdp_busy(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_dsi_wait4video_done(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_dsi_en_wait4dynamic_done(struct mdss_dsi_ctrl_pdata *ctrl);
 int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp);

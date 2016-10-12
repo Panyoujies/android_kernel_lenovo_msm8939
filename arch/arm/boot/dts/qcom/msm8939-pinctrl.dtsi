@@ -109,9 +109,42 @@
 			};
 		};
 
+		pmx_mdss_te: pmx_mdss_te {
+			label = "mdss-te-pin";
+			qcom,pin-func = <1>;
+			mdss_te_active: active {
+				drive-strength = <2>; /* 2 mA */
+				bias-pull-down; /* pull down */
+				input-debounce = <0>;
+			};
+			mdss_te_suspend: suspend {
+				drive-strength = <2>; /* 2 mA */
+				bias-pull-down; /* pull down */
+				input-debounce = <0>;
+			};
+		};
+
+		pmx_mdss_id: pmx_mdss_id {
+			label = "mdss-id-pin";
+			qcom,pins = <&gp 34>;
+			qcom,num-grp-pins = <1>;
+			qcom,pin-func = <1>;
+			mdss_id_active: active {
+				drive-strength = <2>; /* 2 mA */
+				bias-pull-down; /* pull down */
+				input-debounce = <0>;
+			};
+			mdss_id_suspend: suspend {
+				drive-strength = <2>; /* 2 mA */
+				bias-pull-down; /* pull down */
+				input-debounce = <0>;
+			};
+		};
+//delete for camera powr by ljk
 		blsp1_uart1_active {
 			qcom,pins = <&gp 0>, <&gp 1>, <&gp 2>, <&gp 3>;
-			qcom,num-grp-pins = <4>;
+			//qcom,num-grp-pins = <4>;
+			qcom,num-grp-pins = <0>;//delete for camera power by ljk
 			qcom,pin-func = <2>;
 			label = "blsp1_uart1_active";
 
@@ -123,7 +156,8 @@
 
 		blsp1_uart1_sleep {
 			qcom,pins = <&gp 0>, <&gp 1>, <&gp 2>, <&gp 3>;
-			qcom,num-grp-pins = <4>;
+			//qcom,num-grp-pins = <4>;
+                        qcom,num-grp-pins = <0>;//delete for camera power by ljk
 			qcom,pin-func = <0>;
 			label = "blsp1_uart1_sleep";
 
@@ -206,7 +240,7 @@
 			label = "sdc2-clk";
 			sdc2_clk_on: clk_on {
 				bias-disable; /* NO pull */
-				drive-strength = <16>; /* 16 MA */
+				drive-strength = <10>; /* 10 MA */
 			};
 			sdc2_clk_off: clk_off {
 				bias-disable; /* NO pull */
@@ -386,8 +420,8 @@
 
 		spi5_active {
                         /* MOSI, MISO, CLK */
-                        qcom,pins = <&gp 16>, <&gp 17>, <&gp 19>;
-                        qcom,num-grp-pins = <3>;
+                        qcom,pins = <&gp 17>, <&gp 19>; //<&gp 16>,
+                        qcom,num-grp-pins = <0>;//change flash power by ljk
                         qcom,pin-func = <1>;
                         label = "spi5-active";
                         /* active state */
@@ -399,8 +433,8 @@
 
                 spi5_suspend {
                         /* MOSI, MISO, CLK */
-                        qcom,pins = <&gp 16>, <&gp 17>, <&gp 19>;
-                        qcom,num-grp-pins = <3>;
+                        qcom,pins = <&gp 17>, <&gp 19>;//<&gp 16>,
+                        qcom,num-grp-pins = <0>;//change flash power by ljk
                         qcom,pin-func = <0>;
                         label = "spi5-suspend";
                         /* suspended state */
@@ -450,9 +484,9 @@
 		};
 
 		tlmm_gpio_key {
-			qcom,pins = <&gp 107>, <&gp 108>, <&gp 109>;
+			qcom,pins = <&gp 36>,  <&gp 107>, <&gp 108>, <&gp 109>, <&gp 114>;
 			qcom,pin-func = <0>;
-			qcom,num-grp-pins = <3>;
+			qcom,num-grp-pins = <5>;
 			label = "tlmm_gpio_key";
 			gpio_key_active: gpio_key_active {
 				drive-strength = <2>;
@@ -463,7 +497,17 @@
 				bias-pull-up;
 			};
 		};
+        tps65132-en-pin {
+            qcom,pins = <&gp 121>, <&gp 98>;
+            qcom,num-grp-pins = <2>;
+            label = "tps65132_en_pins";
+            qcom,pin-func = <0>;
 
+		    tps65132_en_default: en-default {
+			    drive-strength = <2>;
+			    bias-pull-down;
+		    };
+	    };
 		/* add pingrp for touchscreen */
 		pmx_ts_int_active {
 			qcom,pins = <&gp 13>;
@@ -636,6 +680,48 @@
 			};
 		};
 
+		ltr_int_pin {
+			qcom,pins = <&gp 113>;
+			qcom,pin-func = <0>;
+			qcom,num-grp-pins = <1>;
+			label = "ltr559-irq-gpio";
+			ltr_default: ltr_default {
+				drive-strength = <6>;
+				bias-pull-down;
+			};
+			ltr_sleep: ltr_sleep {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+        };
+
+        bma2x2_int1_pin {
+			qcom,pins = <&gp 112>;
+			qcom,num-grp-pins = <1>;
+			label = "bma2x2_int1_pin";
+			bma2x2_int1_default: int1_default {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+			bma2x2_int1_sleep: int1_sleep {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+        };
+
+        bma2x2_int2_pin {
+			qcom,pins = <&gp 114>;
+			qcom,num-grp-pins = <1>;
+			label = "bma2x2_int2_pin";
+			bma2x2_int2_default: int2_default {
+				drive-strength = <6>;
+				bias-pull-up;
+			};
+			bma2x2_int2_sleep: int2_sleep {
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+        };
 		mpu6050_int_pin {
 			/* Gyroscope and accelerometer sensor combo */
 			qcom,pins = <&gp 115>;
@@ -746,27 +832,12 @@
 			qcom,pin-func = <0>;
 
 			mdss_dsi_active: active {
-				drive-strength = <8>; /* 8 mA */
+				drive-strength = <2>; /* 2 mA */
 				bias-disable = <0>; /* no pull */
 			};
 			mdss_dsi_suspend: suspend {
 				drive-strength = <2>; /* 2 mA */
 				bias-pull-down; /* pull down */
-			};
-		};
-
-		pmx_mdss_te: pmx_mdss_te {
-			label = "mdss-te-pin";
-			qcom,pin-func = <1>;
-			mdss_te_active: active {
-				drive-strength = <2>; /* 2 mA */
-				bias-pull-down; /* pull down */
-				input-debounce = <0>;
-			};
-			mdss_te_suspend: suspend {
-				drive-strength = <2>; /* 2 mA */
-				bias-pull-down; /* pull down */
-				input-debounce = <0>;
 			};
 		};
 
@@ -1012,8 +1083,10 @@
 
 		cam_sensor_rear {
 			/* RESET, STANDBY */
-			qcom,pins =  <&gp 35>, <&gp 34>;
-			qcom,num-grp-pins = <2>;
+			//qcom,pins =  <&gp 35>, <&gp 34>;
+			//qcom,num-grp-pins = <2>;
+			qcom,pins =  <&gp 2>, <&gp 3>, <&gp 1>, <&gp 35>;//dvdd_en, avdd_en, af_en, rst by ljk
+			qcom,num-grp-pins = <3>;
 			qcom,pin-func = <0>;
 			label = "cam-sensor-rear";
 			/* active state */
@@ -1025,8 +1098,10 @@
 
 		cam_sensor_rear_sleep {
 			/* RESET, STANDBY */
-			qcom,pins =  <&gp 35>, <&gp 34>;
-			qcom,num-grp-pins = <2>;
+			//qcom,pins =  <&gp 35>, <&gp 34>;
+			//qcom,num-grp-pins = <2>;
+			qcom,pins =  <&gp 2>, <&gp 3>, <&gp 1>, <&gp 35>;//dvdd_en, avdd_en, af_en, rst by ljk
+			qcom,num-grp-pins = <4>;
 			qcom,pin-func = <0>;
 			label = "cam-sensor-rear-sleep";
 			/*suspend state */
@@ -1038,8 +1113,8 @@
 
 		cam_sensor_front {
 			/* RESET, STANDBY */
-			qcom,pins = <&gp 28>, <&gp 33>;
-			qcom,num-grp-pins = <2>;
+			qcom,pins = <&gp 28>, <&gp 33>,<&gp 95>,<&gp 0>; // reset, pwd,  avdd_en, dvdd_en by ljk
+			qcom,num-grp-pins = <4>;
 			qcom,pin-func = <0>;
 			label = "cam_sensor_front";
 			/* active state */
@@ -1051,8 +1126,8 @@
 
 		cam_sensor_front_sleep {
 			/* RESET, STANDBY */
-			qcom,pins = <&gp 28>, <&gp 33>;
-			qcom,num-grp-pins = <2>;
+			qcom,pins = <&gp 28>, <&gp 33>,<&gp 95>,<&gp 0>;// reset, pwd,  avdd_en, dvdd_en
+			qcom,num-grp-pins = <4>;
 			qcom,pin-func = <0>;
 			label = "cam_sensor_front_sleep";
 			/*suspend state */
@@ -1064,7 +1139,7 @@
 
 		cam_sensor_flash {
 			/* FLSH_RESET,FLASH_EN,FLASH_NOW */
-			qcom,pins = <&gp 36>, <&gp 31>,<&gp 32> ;
+			qcom,pins = <&gp 16>, <&gp 100>,<&gp 31> ; //change flash power by ljk
 			qcom,num-grp-pins = <3>;
 			qcom,pin-func = <0>;
 			label = "cam_sensor_flash";
@@ -1358,7 +1433,7 @@
 
 		tpiu_setb_8 {
 			qcom,pins = <&gp 31>;
-			qcom,num-grp-pins = <1>;
+			qcom,num-grp-pins = <0>;//<1>; //delete for camera flash power
 			qcom,pin-func = <10>;
 			label = "tpiu-setb-8";
 			setb_8: setb {
@@ -1369,7 +1444,7 @@
 
 		tpiu_setb_9 {
 			qcom,pins = <&gp 32>;
-			qcom,num-grp-pins = <1>;
+			qcom,num-grp-pins = <0>;
 			qcom,pin-func = <10>;
 			label = "tpiu-setb-9";
 			setb_9: setb {
@@ -1467,7 +1542,7 @@
 		};
 
 		tpiu_setb_18 {
-			qcom,pins = <&gp 121>;
+			qcom,pins = <&gp 97>;
 			qcom,num-grp-pins = <1>;
 			qcom,pin-func = <11>;
 			label = "tpiu-setb-18";
@@ -1476,6 +1551,22 @@
 				bias-disable;
 			};
 		};
+		/*max77819 flash led pin group*/
+        	max77819-flash-pin {
+                	qcom,pins = <&gp 32>, <&gp 101>;
+                	qcom,num-grp-pins = <2>;
+                	label = "max77819_flash_pins";
+                	qcom,pin-func = <0>;
+
+                	max77819_flash_default: en-default {
+                        	driver-strength = <2>;
+                        	bias-disable;
+                	};
+                	max77819_flash_suspend: en-suspend {
+                        	driver-strength = <2>;
+                        	bias-pull-down;
+                	};
+        	};
 
 		uicc-active {
 			qcom,pins = <&gp 53>, <&gp 54>;

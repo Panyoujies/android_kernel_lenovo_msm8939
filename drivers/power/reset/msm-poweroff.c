@@ -148,6 +148,34 @@ static void enable_emergency_dload_mode(void)
 		pr_err("Failed to set secure EDLOAD mode: %d\n", ret);
 }
 
+static int emergent_restart;
+extern int qpnp_pon_set_emergent_restart_mode(void);
+static int emergent_restart_set(const char *val, struct kernel_param *kp)
+{
+	int ret;
+	int old_val = emergent_restart;
+
+	/* it has been set the emergent_restart mode */
+	if (emergent_restart)
+		return 0;
+
+	ret = param_set_int(val, kp);
+	if (ret)
+		return ret;
+	/* If emergent_restart is not zero or one, ignore. */
+	if (emergent_restart >> 1) {
+		emergent_restart = old_val;
+		return -EINVAL;
+	}
+
+	qpnp_pon_set_emergent_restart_mode();
+
+	return 0;
+}
+
+module_param_call(emergent_restart, emergent_restart_set, param_get_int,
+		&emergent_restart, 0644);
+
 static int dload_set(const char *val, struct kernel_param *kp)
 {
 	int ret;
@@ -212,6 +240,8 @@ static void halt_spmi_pmic_arbiter(void)
 	}
 }
 
+void qpnp_poweroff_last_reg(int poweroff);
+
 static void msm_restart_prepare(const char *cmd)
 {
 	bool need_warm_reset = false;
@@ -242,6 +272,7 @@ static void msm_restart_prepare(const char *cmd)
 				(cmd != NULL && cmd[0] != '\0'));
 	}
 
+	qpnp_poweroff_last_reg(0);
 	/* Hard reset the PMIC unless memory contents must be maintained. */
 	if (need_warm_reset) {
 		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
@@ -373,6 +404,7 @@ static void do_msm_poweroff(void)
 #ifdef CONFIG_MSM_DLOAD_MODE
 	set_dload_mode(0);
 #endif
+	qpnp_poweroff_last_reg(1);
 	qpnp_pon_system_pwr_off(PON_POWER_OFF_SHUTDOWN);
 	/* Needed to bypass debug image on some chips */
 	if (!is_scm_armv8())

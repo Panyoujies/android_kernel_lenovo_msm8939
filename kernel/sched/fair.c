@@ -2407,6 +2407,11 @@ static inline int migration_needed(struct rq *rq, struct task_struct *p)
 	if (nice > sched_upmigrate_min_nice && rq->capacity > min_capacity)
 		return MOVE_TO_LITTLE_CPU;
 
+#ifdef CONFIG_SELFISH_TASK_MIGR
+	if (p->task_need_down_migrate && rq->capacity == max_capacity)
+		return MOVE_TO_LITTLE_CPU;
+#endif
+
 	if (!task_will_fit(p, cpu_of(rq)))
 		return MOVE_TO_BIG_CPU;
 

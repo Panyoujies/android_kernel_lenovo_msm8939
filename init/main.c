@@ -82,7 +82,9 @@
 #include <asm/setup.h>
 #include <asm/sections.h>
 #include <asm/cacheflush.h>
-
+/*[lenovo-fw,wangxz5,add_bootprof_log],"add bootprof log",add*/
+#include <linux/bootprof.h>
+/*[lenovo-fw,wangxz5,add_bootprof_log],end*/
 #ifdef CONFIG_X86_LOCAL_APIC
 #include <asm/smp.h>
 #endif
@@ -824,7 +826,9 @@ static int __ref kernel_init(void *unused)
 	numa_default_policy();
 
 	flush_delayed_fput();
-
+/*[lenovo-fw,wangxz5,add_bootprof_log],"add bootprof log",add*/
+    log_boot("Kernel_init_done");
+/*[lenovo-fw,wangxz5,add_bootprof_log],end*/
 	if (ramdisk_execute_command) {
 		if (!run_init_process(ramdisk_execute_command))
 			return 0;

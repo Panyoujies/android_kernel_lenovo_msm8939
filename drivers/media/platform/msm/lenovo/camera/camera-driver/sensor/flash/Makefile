@@ -1,0 +1,15 @@
+ccflags-y += -Idrivers/media/platform/msm/lenovo/camera/camera-driver/sensor/cci
+ccflags-y += -Idrivers/media/platform/msm/lenovo/camera/camera-driver
+ccflags-y += -Idrivers/media/platform/msm/lenovo/camera/camera-driver/sensor/io
+obj-$(CONFIG_LENOVOB_CAMERA) += msm_led_flash.o
+obj-$(CONFIG_LENOVOB_CAMERA) += msm_led_trigger.o
+obj-$(CONFIG_LENOVO_FLASH_ONE) += msm_led_i2c_trigger.o
+obj-$(CONFIG_LENOVO_FLASH_TWO) += msm_led_i2c_trigger_two.o
+#obj-$(CONFIG_LENOVOB_CAMERA) += adp1660.o
+#obj-$(CONFIG_LENOVOB_CAMERA) += bd7710.o
+obj-$(CONFIG_LENOVOB_CAMERA) += msm_led_torch.o
+obj-$(CONFIG_LENOVO_FLASH_MSM) += msm_flash.o
+obj-$(CONFIG_LENOVO_FLASH_LM3643) += lm3643.o
+obj-$(CONFIG_LENOVO_FLASH_MAX77819) += max77819_flash.o
+obj-$(CONFIG_LENOVO_FLASH_LM3642TLX) += lm3642tlx.o
+obj-$(CONFIG_LENOVO_FLASH_LM3643_PASSION) += lm3643-passion.o

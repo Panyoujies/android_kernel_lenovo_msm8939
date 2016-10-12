@@ -344,13 +344,14 @@
 	status = "okay";
 };
 
+#include "dsi-panel-jdi-a216-fhd-video.dtsi"
 #include "dsi-panel-jdi-1080p-video.dtsi"
 #include "dsi-panel-nt35590-720p-video.dtsi"
 #include "dsi-panel-nt35590-720p-cmd.dtsi"
 #include "dsi-panel-hx8394d-720p-video.dtsi"
 #include "dsi-panel-sharp-dualmipi0-wqxga-video.dtsi"
 #include "dsi-panel-sharp-dualmipi1-wqxga-video.dtsi"
-#include "dsi-panel-jdi-a216-fhd-video.dtsi"
+#include "lenovo-dsi-panel-r69006-lgd-1080p-cmd.dtsi"
 
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";
@@ -395,16 +396,21 @@
 };
 
 &dsi_jdi_a216_fhd_vid {
-	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
-	qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
-	qcom,mdss-dsi-bl-pmic-bank-select = <0>;
-	qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
-	qcom,cont-splash-enabled;
+       qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+       qcom,mdss-dsi-bl-pmic-pwm-frequency = <100>;
+       qcom,mdss-dsi-bl-pmic-bank-select = <0>;
+       qcom,mdss-dsi-pwm-gpio = <&pm8916_mpps 4 0>;
+       qcom,cont-splash-enabled;
+};
+
+&dsi_lgd_1080_vid {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+    qcom,cont-splash-disabled;
 };
 
 &pmx_mdss {
-	qcom,num-grp-pins = <3>;
-	qcom,pins = <&gp 97>, <&gp 25>, <&gp 98>;
+	qcom,num-grp-pins = <4>;
+	qcom,pins = <&gp 25>, <&gp 97>, <&gp 76>, <&gp 98>;
 };
 
 &pmx_mdss_te {
@@ -416,11 +422,12 @@
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
-	qcom,dsi-pref-prim-pan = <&dsi_jdi_1080_vid>;
-
-	qcom,platform-enable-gpio = <&msm_gpio 97 0>;
-	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
-	qcom,platform-bklight-en-gpio = <&msm_gpio 98 0>;
+	qcom,dsi-pref-prim-pan = <&dsi_lgd_1080_vid>;
+ 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
+	qcom,platform-vsp-gpio = <&msm_gpio 97 0>;
+    qcom,platform-vsn-gpio = <&msm_gpio 76 0>;
+    qcom,platform-enable-gpio = <&msm_gpio 98 0>;
+    qcom,platform-lcd-id = <&msm_gpio 34 0>;
 };
 
 &dsi_dual_sharp_video_0 {

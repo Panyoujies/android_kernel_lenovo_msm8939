@@ -68,6 +68,7 @@
 #define MSMFB_OVERLAY_PREPARE		_IOWR(MSMFB_IOCTL_MAGIC, 169, \
 						struct mdp_overlay_list)
 #define MSMFB_LPM_ENABLE	_IOWR(MSMFB_IOCTL_MAGIC, 170, unsigned int)
+#define MSMFB_PANEL_EFFECT				_IOW(MSMFB_IOCTL_MAGIC, 180, struct hal_panel_ctrl_data)
 
 #define FB_TYPE_3D_PANEL 0x10101010
 #define MDP_IMGTYPE2_START 0x10000
@@ -1092,6 +1093,47 @@ struct msmfb_metadata {
 	} data;
 };
 
+#define EFFECT_COUNT 16
+#define MODE_COUNT  8
+#define NAME_SIZE 16
+
+typedef enum {
+	GET_EFFECT_NUM = 1,
+	GET_EFFECT_LEVEL,
+	GET_EFFECT,
+	GET_MODE_NUM,
+	GET_MODE,
+	SET_EFFECT,
+	SET_MODE,
+	SET_BL_LEVEL,
+	GET_BL_LEVEL,
+} ctrl_id;
+
+struct hal_lcd_effect {
+	char name[NAME_SIZE];
+	int max_level;
+	int level;
+};
+
+struct hal_lcd_mode {
+	char name[NAME_SIZE];
+};
+
+struct hal_panel_data {
+	struct hal_lcd_effect effect[EFFECT_COUNT];
+	struct hal_lcd_mode mode[MODE_COUNT];
+	int effect_cnt;
+	int mode_cnt;
+	int current_mode;
+};
+
+struct hal_panel_ctrl_data {
+	struct hal_panel_data panel_data;
+	int level;
+	int mode;
+	int index;
+	ctrl_id id;
+};
 #define MDP_MAX_FENCE_FD	32
 #define MDP_BUF_SYNC_FLAG_WAIT	1
 #define MDP_BUF_SYNC_FLAG_RETIRE_FENCE	0x10

@@ -1867,6 +1867,8 @@ static int mmc_suspend(struct mmc_host *host)
 		err = mmc_card_sleep(host);
 	else if (!mmc_host_is_spi(host))
 		err = mmc_deselect_cards(host);
+
+
 	host->card->state &= ~(MMC_STATE_HIGHSPEED | MMC_STATE_HIGHSPEED_200);
 
 out:
@@ -1889,9 +1891,13 @@ static int mmc_resume(struct mmc_host *host)
 	BUG_ON(!host->card);
 
 	mmc_claim_host(host);
-	retries = 3;
-	while (retries) {
-		err = mmc_init_card(host, host->ocr, host->card);
+
+
+		retries = 3;
+		printk("mmc_resume while  into   \r\n");
+
+		while (retries) {
+			err = mmc_init_card(host, host->ocr, host->card);
 
 		if (err) {
 			pr_err("%s: MMC card re-init failed rc = %d (retries = %d)\n",
@@ -1905,14 +1911,18 @@ static int mmc_resume(struct mmc_host *host)
 		}
 		break;
 	}
+
+
 	mmc_release_host(host);
 
 	/*
 	 * We have done full initialization of the card,
 	 * reset the clk scale stats and current frequency.
 	 */
+
 	if (mmc_can_scale_clk(host))
 		mmc_init_clk_scaling(host);
+
 
 	return err;
 }

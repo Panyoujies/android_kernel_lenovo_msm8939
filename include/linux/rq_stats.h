@@ -25,6 +25,7 @@ struct rq_data {
 	struct kobject *kobj;
 	struct work_struct def_timer_work;
 	int init;
+	char helper_data[128];
 };
 
 extern spinlock_t rq_lock;

@@ -2778,6 +2778,7 @@ static inline void fsg_common_put(struct fsg_common *common)
 	kref_put(&common->ref, fsg_common_release);
 }
 
+static struct device* cdrom_dev=NULL;
 /*
  * This function creates device entry for LUN and its related paramters.
 */
@@ -2853,6 +2854,8 @@ static int create_lun_device(struct fsg_common *common,
 			rc = -EINVAL;
 			goto error_luns;
 		}
+		if(curlun->cdrom == 1)
+			cdrom_dev = &curlun->dev;
 	}
 
 	common->nluns = nluns;

@@ -1,0 +1,2 @@
+obj-$(CONFIG_LENOVOB_CAMERA) += cpp/
+obj-$(CONFIG_LENOVOB_CAMERA) += vpe/

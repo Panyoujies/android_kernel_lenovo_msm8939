@@ -860,6 +860,12 @@ config SENSORS_BMI058
 	 If you say yes here, you get support for Bosch Sensortec's
 	 sensor driver of BMI058.
 
+config SENSORS_LTR559
+	tristate "LTR559 alsps sensor support"
+	depends on I2C
+	help
+	 If you say yes here, you get support for LTR559.
+
 config SENSORS_BMI160
 	tristate "BMI160 Sensor Support"
 	depends on I2C || SPI_MASTER
