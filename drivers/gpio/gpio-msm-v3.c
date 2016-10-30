@@ -237,3 +237,242 @@ void __msm_gpio_install_direct_irq(unsigned gpio, unsigned irq,
 		cfg |= DC_POLARITY_HI;
 	__raw_writel_no_log(cfg, GPIO_DIR_CONN_INTR(irq));
 }
+
+/* yangjq, 20130515, Add sysfs for gpio's debug, START */
+#define TLMM_NUM_GPIO 146
+
+#define HAL_OUTPUT_VAL(config)    \
+         (((config)&0x40000000)>>30)
+
+static int tlmm_get_cfg(unsigned gpio, unsigned* cfg)
+{
+	unsigned flags;
+
+	BUG_ON(gpio >= TLMM_NUM_GPIO);
+	//printk("%s(), gpio=%d, addr=0x%08x\n", __func__, gpio, (unsigned int)GPIO_CONFIG(gpio));
+
+#if 0
+	flags = ((GPIO_DIR(config) << 9) & (0x1 << 9)) |
+		((GPIO_DRVSTR(config) << 6) & (0x7 << 6)) |
+		((GPIO_FUNC(config) << 2) & (0xf << 2)) |
+		((GPIO_PULL(config) & 0x3));
+#else
+	flags = __raw_readl(GPIO_CONFIG(gpio));
+#endif
+	*cfg = GPIO_CFG(gpio, (flags >> 2) & 0xf, (flags >> 9) & 0x1, flags & 0x3, (flags >> 6) & 0x7);
+
+	return 0;
+}
+
+static int tlmm_dump_cfg(char* buf,unsigned gpio, unsigned cfg, int output_val)
+{
+	static char* drvstr_str[] = { "2", "4", "6", "8", "10", "12", "14", "16" }; // mA
+	static char*   pull_str[] = { "N", "D", "K", "U" };	 // "NO_PULL", "PULL_DOWN", "KEEPER", "PULL_UP"
+	static char*    dir_str[] = { "I", "O" }; // "Input", "Output"	 
+	char func_str[20];
+	
+	char* p = buf;
+
+	int drvstr   = GPIO_DRVSTR(cfg);
+	int pull     = GPIO_PULL(cfg);
+	int dir      = GPIO_DIR(cfg);
+	int func     = GPIO_FUNC(cfg);
+
+	//printk("%s(), drvstr=%d, pull=%d, dir=%d, func=%d\n", __func__, drvstr, pull, dir, func);
+	sprintf(func_str, "%d", func);
+
+	p += sprintf(p, "%d:0x%x %s%s%s%s", gpio, cfg,
+			func_str, pull_str[pull], dir_str[dir], drvstr_str[drvstr]);
+
+	p += sprintf(p, " = %d", output_val);
+
+	p += sprintf(p, "\n");	
+			
+	return p - buf;		
+}
+
+static int tlmm_dump_header(char* buf)
+{
+	char* p = buf;
+	p += sprintf(p, "bit   0~3: function. (0 is GPIO)\n");
+	p += sprintf(p, "bit  4~13: gpio number\n");
+	p += sprintf(p, "bit    14: 0: input, 1: output\n");
+	p += sprintf(p, "bit 15~16: pull: NO_PULL, PULL_DOWN, KEEPER, PULL_UP\n");
+	p += sprintf(p, "bit 17~20: driver strength. \n");
+	p += sprintf(p, "0:GPIO\n");
+	p += sprintf(p, "N:NO_PULL  D:PULL_DOWN  K:KEEPER  U:PULL_UP\n");
+	p += sprintf(p, "I:Input  O:Output\n");
+	p += sprintf(p, "2:2, 4, 6, 8, 10, 12, 14, 16 mA (driver strength)\n\n");
+	return p - buf;
+}
+
+int tlmm_dump_info(char* buf, int tlmm_num)
+{
+	unsigned i;
+	char* p = buf;
+	unsigned cfg;
+	int output_val = 0;
+
+	if(tlmm_num >= 0 && tlmm_num < TLMM_NUM_GPIO) {
+		tlmm_get_cfg(tlmm_num, &cfg);
+		output_val = __msm_gpio_get_inout(tlmm_num);
+			
+		p += tlmm_dump_cfg(p, tlmm_num, cfg, output_val);
+	} else {
+		p += tlmm_dump_header(p);
+		p += sprintf(p, "Standard Format: gpio_num  function  pull  direction  strength [output_value]\n");
+		p += sprintf(p, "Shortcut Format: gpio_num  output_value\n");
+		p += sprintf(p, " e.g.  'echo  20 0 D O 2 1'  ==> set pin 20 as GPIO output and the output = 1 \n");
+		p += sprintf(p, " e.g.  'echo  20 1'  ==> set output gpio pin 20 output = 1 \n");
+	
+		printk("%s(), %d\n", __func__, __LINE__);
+		for(i = 0; i < TLMM_NUM_GPIO; ++i) {
+			tlmm_get_cfg(i, &cfg);
+			output_val = __msm_gpio_get_inout(i);
+			
+			p += tlmm_dump_cfg(p, i, cfg, output_val);
+		}
+		printk("%s(), %d\n", __func__, __LINE__);
+		p+= sprintf(p, "(%d)\n", p - buf); // only for debug reference	
+	}
+	return p - buf;	
+}
+
+/* save tlmm config before sleep */
+static unsigned before_sleep_fetched;
+static unsigned before_sleep_configs[TLMM_NUM_GPIO];
+void tlmm_before_sleep_save_configs(void)
+{
+	unsigned i;
+
+	//only save tlmm configs when it has been fetched
+	if (!before_sleep_fetched)
+		return;
+
+	printk("%s(), before_sleep_fetched=%d\n", __func__, before_sleep_fetched);
+	before_sleep_fetched = false;
+	for(i = 0; i < TLMM_NUM_GPIO; ++i) {
+		unsigned cfg;
+		int output_val = 0;
+
+		tlmm_get_cfg(i, &cfg);
+		output_val = __msm_gpio_get_inout(i);
+
+		before_sleep_configs[i] = cfg | (output_val << 30);
+	}
+}
+
+int tlmm_before_sleep_dump_info(char* buf)
+{
+	unsigned i;
+	char* p = buf;
+
+	p += sprintf(p, "tlmm_before_sleep:\n");
+	if (!before_sleep_fetched) {
+		before_sleep_fetched = true;
+
+		p += tlmm_dump_header(p);
+		
+		for(i = 0; i < TLMM_NUM_GPIO; ++i) {
+			unsigned cfg;
+			int output_val = 0;
+
+			cfg = before_sleep_configs[i];
+			output_val = HAL_OUTPUT_VAL(cfg);
+			//cfg &= ~0x40000000;
+			p += tlmm_dump_cfg(p, i, cfg, output_val);
+		}
+		p+= sprintf(p, "(%d)\n", p - buf); // only for debug reference
+	}
+	return p - buf;	
+}
+
+/* set tlmms config before sleep */
+static unsigned before_sleep_table_enabled;
+static unsigned before_sleep_table_configs[TLMM_NUM_GPIO];
+void tlmm_before_sleep_set_configs(void)
+{
+	int res;
+	unsigned i;
+
+	//only set tlmms before sleep when it's enabled
+	if (!before_sleep_table_enabled)
+		return;
+
+	printk("%s(), before_sleep_table_enabled=%d\n", __func__, before_sleep_table_enabled);
+	for(i = 0; i < TLMM_NUM_GPIO; ++i) {
+		unsigned cfg;
+		int gpio;
+		int dir;
+		int func;
+		int output_val = 0;
+
+		cfg = before_sleep_table_configs[i];
+
+		gpio = GPIO_PIN(cfg);
+		if(gpio != i)//(cfg & ~0x20000000) == 0 || 
+			continue;
+
+		output_val = HAL_OUTPUT_VAL(cfg);
+		//Clear the output value
+		//cfg &= ~0x40000000;
+		dir = GPIO_DIR(cfg);
+		func = GPIO_FUNC(cfg);
+
+		printk("%s(), [%d]: 0x%x\n", __func__, i, cfg);
+		res = gpio_tlmm_config((cfg & ~0x40000000), GPIO_CFG_ENABLE);
+		if(res < 0) {
+			printk("Error: Config failed.\n");
+		}
+		
+		if((func == 0) && (dir == 1)) // gpio output
+			__msm_gpio_set_inout(i, output_val);
+	}
+}
+
+int tlmm_before_sleep_table_set_cfg(unsigned gpio, unsigned cfg)
+{
+	//BUG_ON(gpio >= TLMM_NUM_GPIO && GPIO_PIN(cfg) != 0xff);
+	if (gpio >= TLMM_NUM_GPIO && gpio != 255 && gpio != 256) {
+		printk("gpio >= TLMM_NUM_GPIO && gpio != 255 && gpio != 256!\n");
+		return -1;
+	}
+
+	if(gpio < TLMM_NUM_GPIO)
+	{
+		before_sleep_table_configs[gpio] = cfg;// | 0x20000000
+		before_sleep_table_enabled = true;
+	}
+	else if(gpio == 255)
+		before_sleep_table_enabled = true;
+	else if(gpio == 256)
+		before_sleep_table_enabled = false;
+
+	return 0;
+}
+
+int tlmm_before_sleep_table_dump_info(char* buf)
+{
+	unsigned i;
+	char* p = buf;
+
+	p += tlmm_dump_header(p);
+	p += sprintf(p, "Format: gpio_num  function  pull  direction  strength [output_value]\n");
+	p += sprintf(p, " e.g.  'echo  20 0 D O 2 1'  ==> set pin 20 as GPIO output and the output = 1 \n");
+	p += sprintf(p, " e.g.  'echo  20'  ==> disable pin 20's setting \n");
+	p += sprintf(p, " e.g.  'echo  255'  ==> enable sleep table's setting \n");
+	p += sprintf(p, " e.g.  'echo  256'  ==> disable sleep table's setting \n");
+
+	for(i = 0; i < TLMM_NUM_GPIO; ++i) {
+		unsigned cfg;
+		int output_val = 0;
+
+		cfg = before_sleep_table_configs[i];
+		output_val = HAL_OUTPUT_VAL(cfg);
+		//cfg &= ~0x40000000;
+		p += tlmm_dump_cfg(p, i, cfg, output_val);
+	}
+	p+= sprintf(p, "(%d)\n", p - buf); // only for debug reference
+	return p - buf;
+}
+/* yangjq, 20130515, Add sysfs for gpio's debug, END */

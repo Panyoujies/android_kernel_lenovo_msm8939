@@ -1,7 +1,8 @@
 #
 # Makefile for nfc devices
 #
-
+#lenovo-sw lumy1 modify for brcm2079x nfc
+obj-$(CONFIG_BCM2079X_NFC) += bcm2079x-i2c.o
 obj-$(CONFIG_NFC_PN544)		+= pn544/
 obj-$(CONFIG_NFC_MICROREAD)	+= microread/
 obj-$(CONFIG_NFC_PN533)		+= pn533.o

@@ -370,6 +370,11 @@ static int msm_gpio_suspend(void)
 
 void msm_gpio_show_resume_irq(void)
 {
+	//chenyb1, 20130619, Add log to show gpio wakeup interrupts begin
+	#ifdef CONFIG_LENOVO_PM_LOG
+	extern int save_irq_wakeup_gpio(int irq, int gpio);
+	#endif //#ifdef CONFIG_LENOVO_PM_LOG
+	//chenyb1, 20130619, Add log to show gpio wakeup interrupts end
 	unsigned long irq_flags;
 	int i, irq, intstat;
 	int ngpio = msm_gpio.gpio_chip.ngpio;
@@ -393,6 +398,11 @@ void msm_gpio_show_resume_irq(void)
 
 			pr_warning("%s: %d triggered %s\n",
 					__func__, irq, name);
+			//chenyb1, 20130619, Add log to show gpio wakeup interrupts begin
+			#ifdef CONFIG_LENOVO_PM_LOG
+			save_irq_wakeup_gpio(irq, i);
+			#endif //#ifdef CONFIG_LENOVO_PM_LOG
+			//chenyb1, 20130619, Add log to show gpio wakeup interrupts end
 		}
 	}
 	spin_unlock_irqrestore(&tlmm_lock, irq_flags);

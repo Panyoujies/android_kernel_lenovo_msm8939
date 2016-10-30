@@ -407,7 +407,10 @@ struct i2c_msm_clk_div_fld {
  * divider values as per HW Designers
  */
 static struct i2c_msm_clk_div_fld i2c_msm_clk_div_map[] = {
-	{KHz(100), 124, 62},
+/* Begin, lenovo-sw wengjun1 add 2015-5-4, modify for 100KHz i2c config. */
+	//{KHz(100), 124, 62},
+    {KHz(100), 106, 80},
+/* End, lenovo-sw wengjun1 add 2015-5-4, modify for 100KHz i2c config. */
 	{KHz(400),  28, 14},
 	{KHz(1000),  8,  5},
 };

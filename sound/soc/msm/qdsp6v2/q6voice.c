@@ -26,7 +26,9 @@
 #include "sound/q6afe-v2.h"
 #include <sound/audio_cal_utils.h>
 #include "q6voice.h"
-
+/* lenovo-sw zhangrc2  porting  8939L  change for audio */
+#include <linux/wakelock.h>
+/* lenovo-sw zhangrc2  porting  8939L  change for audio */
 #define TIMEOUT_MS 300
 
 
@@ -44,7 +46,9 @@ enum {
 
 static struct common_data common;
 static bool module_initialized;
-
+/* lenovo-sw zhangrc2  porting  8939L  change for audio */
+static struct wake_lock end_voice_wlock;
+/* lenovo-sw zhangrc2  porting  8939L  change for audio */
 static int voice_send_enable_vocproc_cmd(struct voice_data *v);
 static int voice_send_netid_timing_cmd(struct voice_data *v);
 static int voice_send_attach_vocproc_cmd(struct voice_data *v);
@@ -5196,7 +5200,9 @@ int voc_end_voice_call(uint32_t session_id)
 
 		return -EINVAL;
 	}
-
+        /* lenovo-sw zhangrc2  porting  8939L  change for audio */
+	wake_lock_timeout(&end_voice_wlock,HZ);	
+	/* lenovo-sw zhangrc2  porting  8939L  change for audio */	
 	mutex_lock(&v->lock);
 
 	if (v->voc_state == VOC_RUN || v->voc_state == VOC_ERROR ||
@@ -7764,7 +7770,9 @@ static int __init voice_init(void)
 
 	if (rc == 0)
 		module_initialized = true;
-
+        /* lenovo-sw zhangrc2  porting  8939L  change for audio */
+	wake_lock_init(&end_voice_wlock,WAKE_LOCK_SUSPEND, "end_voice_wakelock");
+        /* lenovo-sw zhangrc2  porting  8939L  change for audio */
 	pr_debug("%s: rc=%d\n", __func__, rc);
 	return rc;
 }

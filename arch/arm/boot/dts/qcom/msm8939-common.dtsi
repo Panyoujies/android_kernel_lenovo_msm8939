@@ -31,7 +31,9 @@
 		i2c4 = &i2c_4;
 		i2c5 = &i2c_5;
 		i2c6 = &i2c_6;
-		spi0 = &spi_0;
+		/* lenovo-sw, chenzz3, lock spi in trustzone, begin */
+		//spi0 = &spi_0;
+		/* lenovo-sw, chenzz3, lock spi in trustzone, end */
 		spi5 = &spi_5;
 	};
 
@@ -39,13 +41,15 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 
+        /* lenovo-sw chenzz3 change trustzone memory range to max limit of 13M begin */
 		external_image_mem: external_image__region@0 {
 			linux,reserve-contiguous-region;
 			linux,reserve-region;
 			linux,remove-completely;
-			reg = <0x0 0x86000000 0x0 0x0800000>;
+			reg = <0x0 0x85600000 0x0 0x1200000>;
 			label = "external_image_mem";
 		};
+        /* lenovo-sw chenzz3 change trustzone memory range to max limit of 13M end */
 
 		modem_adsp_mem: modem_adsp_region@0 {
 			linux,reserve-contiguous-region;
@@ -205,8 +209,8 @@
 		reg = <0xb017000 0x1000>;
 		reg-names = "wdt-base";
 		interrupts = <0 3 0>, <0 4 0>;
-		qcom,bark-time = <11000>;
-		qcom,pet-time = <10000>;
+		qcom,bark-time = <13000>;
+		qcom,pet-time = <8000>;
 		qcom,ipi-ping;
 	};
 
@@ -722,7 +726,9 @@
 
 	qcom_seecom: qseecom@86000000 {
 		compatible = "qcom,qseecom";
-		reg = <0x86000000 0x300000>;
+        /* lenovo-sw chenzz3 change trustzone memory range to max limit of 13M begin */
+		reg = <0x85600000 0xd00000>;
+        /* lenovo-sw chenzz3 change trustzone memory range to max limit of 13M end */
 		reg-names = "secapp-region";
 		qcom,disk-encrypt-pipe-pair = <2>;
 		qcom,hlos-ce-hw-instance = <0>;
@@ -791,7 +797,7 @@
 		qcom,vdd-voltage-level = <1 5 7>;
 
 		qcom,hsusb-otg-phy-init-seq =
-			<0x44 0x80 0x6B 0x81 0x24 0x82 0x13 0x83 0xffffffff>;
+			<0x74 0x80 0x67 0x81 0x2C 0x82 0x13 0x83 0xffffffff>;
 		qcom,hsusb-otg-phy-type = <2>;
 		qcom,hsusb-otg-mode = <1>;
 		qcom,hsusb-otg-otg-control = <2>;
@@ -916,31 +922,6 @@
 		dma-names = "tx", "rx";
 		qcom,master-id = <86>;
 	};
-
-	spi_0: spi@78b7000 { /* BLSP1 QUP3 */
-		compatible = "qcom,spi-qup-v2";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		reg-names = "spi_physical", "spi_bam_physical";
-		reg = <0x78b7000 0x600>,
-			<0x7884000 0x23000>;
-		interrupt-names = "spi_irq", "spi_bam_irq";
-		interrupts = <0 97 0>, <0 238 0>;
-		spi-max-frequency = <19200000>;
-		pinctrl-names = "spi_default", "spi_sleep";
-		pinctrl-0 = <&spi0_default &spi0_cs0_active>;
-		pinctrl-1 = <&spi0_sleep &spi0_cs0_sleep>;
-		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
-			<&clock_gcc clk_gcc_blsp1_qup3_spi_apps_clk>;
-		clock-names = "iface_clk", "core_clk";
-		qcom,infinite-mode = <0>;
-		qcom,use-bam;
-		qcom,use-pinctrl;
-		qcom,ver-reg-exists;
-		qcom,bam-consumer-pipe-index = <8>;
-		qcom,bam-producer-pipe-index = <9>;
-		qcom,master-id = <86>;
-		};
 
 	i2c_4: i2c@78b8000 { /* BLSP1 QUP4 */
 		compatible = "qcom,i2c-msm-v2";
@@ -1127,8 +1108,10 @@
 		clocks = <&clock_gcc clk_gcc_sdcc2_ahb_clk>,
 			 <&clock_gcc clk_gcc_sdcc2_apps_clk>;
 		clock-names = "iface_clk", "core_clk";
-
-		qcom,clk-rates = <400000 25000000 50000000 100000000 200000000>;
+                /* begin lenovo-sw zhucc2 remove sdr104 clk, for HW signal is bad */
+		/*qcom,clk-rates = <400000 25000000 50000000 100000000 177770000>;*/
+		qcom,clk-rates = <400000 25000000 50000000 100000000>;
+                /* end lenovo-sw zhucc2 remove sdr104 clk, for HW signal is bad */
 
 		status = "disabled";
 	};

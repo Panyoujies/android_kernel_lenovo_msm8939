@@ -23,6 +23,10 @@
 #include "mdss_panel.h"
 #include "mdss_dsi_cmd.h"
 
+#ifdef CONFIG_FB_LENOVO_LCD_EFFECT
+#include "lenovo_lcd_effect/lenovo_lcd_effect.h" //lenovo.sw2 houdz1 add for lcd effect
+#endif
+
 #define MMSS_SERDES_BASE_PHY 0x04f01000 /* mmss (De)Serializer CFG */
 
 #define MIPI_OUTP(addr, data) writel_relaxed((data), (addr))
@@ -341,6 +345,8 @@ struct mdss_dsi_ctrl_pdata {
 	int rst_gpio;
 	int disp_en_gpio;
 	int bklt_en_gpio;
+	int disp_vsn_gpio;//lenovo.sw2 houdz1 add
+	int disp_vsp_gpio;//lenovo.sw2 houdz1 add
 	int mode_gpio;
 	int bklt_ctrl;	/* backlight ctrl */
 	bool pwm_pmi;
@@ -418,6 +424,22 @@ struct mdss_dsi_ctrl_pdata {
 	int horizontal_idle_cnt;
 	struct panel_horizontal_idle *line_idle;
 	struct mdss_util_intf *mdss_util;
+	u32 panel_id;//lenovo.sw2 houdz add
+/*lenovo.sw2 houdz add for lcd effect start*/
+#ifdef CONFIG_FB_LENOVO_LCD_EFFECT
+	struct lenovo_lcd_effect lenovoLcdEffect;
+
+	struct dsi_panel_cmds custom_mode_cmds;
+	struct dsi_panel_cmds default_mode_cmds;
+	struct dsi_panel_cmds comfort_mode_cmds;
+	struct dsi_panel_cmds outside_mode_cmds;
+	struct dsi_panel_cmds ultra_mode_cmds;
+	struct dsi_panel_cmds camera_mode_cmds;
+	struct dsi_panel_cmds gamma_cmds;
+	u32 gamma_count;
+	u32 is_ultra_mode;	
+ #endif
+ /*lenovo.sw2 houdz add for lcd effect end*/
 };
 
 struct dsi_status_data {

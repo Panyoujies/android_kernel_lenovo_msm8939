@@ -33,17 +33,17 @@
 			qcom,system-reset;
 			qcom,clear-warm-reset;
 			qcom,store-hard-reset-reason;
-
+/*add by lixh10 for long press power_key restart phone 2015-03-10 start*/
 			qcom,pon_1 {
 				qcom,pon-type = <0>;
 				qcom,support-reset = <1>;
 				qcom,pull-up = <1>;
-				qcom,s1-timer = <10256>;
+				qcom,s1-timer = <6270>;
 				qcom,s2-timer = <2000>;
-				qcom,s2-type = <1>;
+				qcom,s2-type = <7>;
 				linux,code = <116>;
 			};
-
+/*add by lixh10 for long press power_key restart phone 2015-03-10 start*/
 			qcom,pon_2 {
 				qcom,pon-type = <1>;
 				qcom,pull-up = <1>;
@@ -117,7 +117,7 @@
                         #address-cells = <1>;
                         #size-cells = <1>;
                         qcom,qpnp-rtc-write = <0>;
-                        qcom,qpnp-rtc-alarm-pwrup = <0>;
+                        qcom,qpnp-rtc-alarm-pwrup = <1>;
 
                         qcom,pm8916_rtc_rw@6000 {
                                 reg = <0x6000 0x100>;
@@ -172,6 +172,19 @@
 				qcom,hw-settle-time = <0>;
 				qcom,fast-avg-setup = <0>;
 			};
+			
+/*lenovo-sw weiweij modified for charger IC ntc*/
+			chan@11 {	
+				label = "mpp2_div1";
+				reg = <0x11>;
+				qcom,decimation = <0>;
+				qcom,pre-div-channel-scaling = <0>;
+				qcom,calibration-type = "absolute";
+				qcom,scale-function = <0>;
+				qcom,hw-settle-time = <0>;
+				qcom,fast-avg-setup = <0>;
+			};
+/*lenovo-sw weiweij modified for charger IC ntc end*/
 		};
 
 		pm8916_tz: qcom,temp-alarm@2400 {
@@ -207,9 +220,9 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			qcom,vddmax-mv = <4200>;
+			qcom,vddmax-mv = <4350>;
 			qcom,vddsafe-mv = <4200>;
-			qcom,vinmin-mv = <4308>;
+			qcom,vinmin-mv = <4500>;
 			qcom,ibatsafe-ma = <1440>;
 			qcom,thermal-mitigation = <1440 720 630 0>;
 			qcom,cool-bat-decidegc = <100>;

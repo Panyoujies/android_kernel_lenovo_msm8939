@@ -167,6 +167,11 @@
 #define TLMMV4_QDSD_CONFIG_WIDTH		0x5
 #define TLMMV4_QDSD_DRV_MASK			0x7
 
+//chenyb1, 20140629, Add to save gpio irq's to log when resume begin
+#ifdef CONFIG_LENOVO_PM_LOG
+extern int msm_show_resume_irq_mask;
+#endif //#ifdef CONFIG_LENOVO_PM_LOG
+//chenyb1, 20140629, Add to save gpio irq's to log when resume end
 struct msm_sdc_regs {
 	unsigned long pull_mask;
 	unsigned long pull_shft;
@@ -949,6 +954,49 @@ static int msm_tlmm_gp_irq_suspend(void)
 	return 0;
 }
 
+//chenyb1, 20140629, Add to save gpio irq's to log when resume, START
+#ifdef CONFIG_LENOVO_PM_LOG
+void msm_gpio_show_resume_irq(void)
+{
+	extern int save_irq_wakeup_gpio(int irq, int gpio);
+	unsigned long irq_flags;
+	unsigned long i;
+	unsigned int irq = 0;
+	int intstat;
+	struct msm_tlmm_irq_chip *ic = &msm_tlmm_gp_irq;
+
+	if (!msm_show_resume_irq_mask)
+		return;
+
+	spin_lock_irqsave(&ic->irq_lock, irq_flags);
+	for_each_set_bit(i, ic->wake_irqs, ic->num_irqs) {
+	//for_each_set_bit(i, ic->enabled_irqs, ic->num_irqs) {
+		intstat = msm_tlmm_get_intr_status(ic, i);
+		//printk("%s(), intstat=%d, i=%lu\n", __func__, intstat, i);
+		if (intstat) {
+			struct irq_desc *desc;
+			const char *name = "null";
+			struct msm_pintype_info *pinfo = ic_to_pintype(ic);
+			struct gpio_chip *gc = pintype_get_gc(pinfo);
+			irq = msm_tlmm_gp_to_irq(gc, i);
+			if (!irq)
+				break;
+			desc = irq_to_desc(irq);
+			if (desc == NULL)
+				name = "stray irq";
+			else if (desc->action && desc->action->name)
+				name = desc->action->name;
+
+			pr_warning("%s: %d triggered %s\n",
+					__func__, irq, name);
+			save_irq_wakeup_gpio(irq, i);
+		}
+	}
+	spin_unlock_irqrestore(&ic->irq_lock, irq_flags);
+}
+#endif //#ifdef CONFIG_LENOVO_PM_LOG
+//chenyb1, 20140629, Add to save gpio irq's to log when resume, END
+
 static void msm_tlmm_gp_irq_resume(void)
 {
 	unsigned long irq_flags;
@@ -956,6 +1004,11 @@ static void msm_tlmm_gp_irq_resume(void)
 	struct msm_tlmm_irq_chip *ic = &msm_tlmm_gp_irq;
 	int num_irqs = ic->num_irqs;
 
+	//chenyb1, 20140629, Add to save gpio irq's to log when resume begin
+	#ifdef CONFIG_LENOVO_PM_LOG
+	msm_gpio_show_resume_irq();
+	#endif// #ifdef CONFIG_LENOVO_PM_LOG
+	//chenyb1, 20140629, Add to save gpio irq's to log when resume end
 	spin_lock_irqsave(&ic->irq_lock, irq_flags);
 	for_each_set_bit(i, ic->wake_irqs, num_irqs)
 		msm_tlmm_set_intr_cfg_enable(ic, i, 0);
@@ -1154,6 +1207,11 @@ static const struct of_device_id msm_tlmm_dt_match[] = {
 };
 MODULE_DEVICE_TABLE(of, msm_tlmm_dt_match);
 
+//chenyb1, 20140629, Add to save gpio irq's to log when resume begin
+#ifdef CONFIG_LENOVO_PM_LOG
+void * tlmm_reg_base = NULL;
+#endif //#ifdef CONFIG_LENOVO_PM_LOG
+//chenyb1, 20140629, Add to save gpio irq's to log when resume end
 static int msm_tlmm_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
@@ -1202,6 +1260,12 @@ static int msm_tlmm_probe(struct platform_device *pdev)
 		tlmm_pininfo[i].pintype_data = pintype_data[i];
 	tlmm_desc->pintypes = tlmm_pininfo;
 	tlmm_desc->num_pintypes = ARRAY_SIZE(tlmm_pininfo);
+/* chenyb1, 20130515, Add sysfs for gpio's debug, START */
+#ifdef CONFIG_LENOVO_PM_LOG
+	tlmm_reg_base = tlmm_desc->base;
+//	printk("%s(), %d, TLMM_BASE=%x\n", __func__, __LINE__, (unsigned int)tlmm_reg_base);
+#endif //#ifdef CONFIG_LENOVO_PM_LOG
+/* chenyb1, 20130515, Add sysfs for gpio's debug, END */
 	return msm_pinctrl_probe(pdev, tlmm_desc);
 }
 

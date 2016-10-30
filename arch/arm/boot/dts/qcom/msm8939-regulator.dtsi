@@ -29,6 +29,7 @@
 		onnn,vsel-gpio = <&msm_gpio 111 1>;
 		onnn,discharge-enable;
 		onnn,restore-reg;
+                status = "disabled";
 	};
 
 	fan53555: fan53555-regulator@60 {
@@ -86,7 +87,10 @@
 		qcom,cpr-fuse-corners = <3>;
 		qcom,cpr-voltage-ceiling = <1050000 1150000 1350000>;
 		qcom,cpr-voltage-floor = <1050000 1050000 1137500>;
-		vdd-apc-supply = <&ncp6335d>;
+		/*lenovo-sw jixj 2014.1.29 modifed for zoom use fan53555*/
+		/*lenovo-sw weiweij modified for p1*/
+		/*vdd-apc-supply = <&ncp6335d>;*/
+		vdd-apc-supply = <&fan53555>;
 
 		qcom,vdd-mx-corner-map = <4 5 7>;
 		qcom,vdd-mx-vmin-method = <4>;

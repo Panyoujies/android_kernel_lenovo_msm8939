@@ -1,0 +1,63 @@
+#
+# Goodix GT11XX Touchscreen driver
+#
+
+config TOUCHSCREEN_GT11XX_S
+	bool "Goodix touchpanel GT1151 series"
+	depends on I2C
+	help
+	  Say Y here if you have a Goodix GT11XX touchscreen.
+	  Gt11XX controllers are multi touch controllers which can
+	  report 5 touches at a time.
+
+          If unsure, say N.
+
+config GT1151_TOUCHPANEL_DRIVER 
+	tristate "Goodix GT11XX touchpanel driver"
+	depends on TOUCHSCREEN_GT11XX_S
+	default n
+	help
+	  This is the main file for touchpanel driver for Goodix GT11XX
+	  touchscreens.
+
+	  Say Y here if you have a Goodix GT11XX touchscreen connected
+	  to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gt11XX_update.
+
+config GT1151_TOUCHPANEL_UPDATE
+	tristate "Goodix GT11XX touchpanel auto update support"
+	depends on GT1151_TOUCHPANEL_DRIVER
+	default n
+	help
+	  This enables support for firmware update for Goodix GT11XX
+	  touchscreens.
+
+	  Say Y here if you have a Goodix GT11XX touchscreen connected
+	  to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gt11XX_update.
+
+config GT1151_TOUCHPANEL_DEBUG
+	tristate "Goodix GT11XX Tools for debuging"
+	depends on GT1151_TOUCHPANEL_DRIVER
+	default n
+	help
+	  This is application debug interface support for Goodix GT11XX
+	  touchscreens.
+
+	  Say Y here if you want to have a Android app debug interface
+	  to your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called gt11XX_update.
+
+

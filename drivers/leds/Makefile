@@ -58,6 +58,10 @@ obj-$(CONFIG_LEDS_LM355x)		+= leds-lm355x.o
 obj-$(CONFIG_LEDS_BLINKM)		+= leds-blinkm.o
 obj-$(CONFIG_LEDS_MSM_GPIO_FLASH)	+= leds-msm-gpio-flash.o
 obj-$(CONFIG_LEDS_AW2013)		+= leds-aw2013.o
+# lenovo houdz1 add begin
+obj-$(CONFIG_LEDS_SN3193)		+= leds-sn3193.o
+obj-$(CONFIG_LEDS_LM36923) 		+= leds-lm36923.o
+# lenovo houdz1 add end
 
 # LED SPI Drivers
 obj-$(CONFIG_LEDS_DAC124S085)		+= leds-dac124s085.o

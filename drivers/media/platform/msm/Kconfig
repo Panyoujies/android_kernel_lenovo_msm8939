@@ -2,7 +2,7 @@
 # MSM camera configuration
 #
 
-comment "Qualcomm MSM Camera And Video"
+comment "Qualcomm && Lenovo MSM Camera And Video"
 
 menuconfig MSM_CAMERA
 	bool "Qualcomm MSM camera and video capture support"
@@ -33,9 +33,42 @@ config MSMB_CAMERA_DEBUG
 	---help---
 	  Enable printk() debug for msm camera 2.0
 
+menuconfig LENOVO_CAMERA
+	bool "Lenovo MSM camera and video capture support"
+	depends on ARCH_MSM && VIDEO_V4L2 && I2C
+	help
+	  Say Y here to enable selecting the video adapters for
+	  Lenovo msm camera and video encoding
+
+config LENOVO_CAMERA_DEBUG
+	bool "Lenovo MSM camera debugging with printk"
+	depends on LENOVO_CAMERA
+	default n
+	help
+	  Enable printk() debug for msm camera
+
+menuconfig LENOVOB_CAMERA
+	bool "Lenovo MSM camera and video capture 2.0 support"
+	depends on ARCH_MSM && VIDEO_V4L2 && I2C
+	---help---
+	  Say Y here to enable selecting the video adapters for
+	  Lenovo msm camera and video capture 2.0, enabling this
+	  adds support for the camera driver stack including sensor, isp
+	  and postprocessing drivers.
+
+config LENOVOB_CAMERA_DEBUG
+	bool "Lenovo MSM camera 2.0 debugging with printk"
+	depends on LENOVOB_CAMERA
+	---help---
+	  Enable printk() debug for msm camera 2.0
+
 if MSMB_CAMERA
 source "drivers/media/platform/msm/camera_v2/Kconfig"
 endif # MSMB_CAMERA
+
+if LENOVOB_CAMERA
+source "../vendor/lenovo/camera/camera-driver/Kconfig"
+endif # LENOVOB_CAMERA
 
 source "drivers/media/platform/msm/vidc/Kconfig"
 source "drivers/media/platform/msm/wfd/Kconfig"

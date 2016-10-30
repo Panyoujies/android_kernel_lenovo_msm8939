@@ -549,3 +549,4 @@ endif # POWER_SUPPLY
 
 source "drivers/power/avs/Kconfig"
 source "drivers/power/qcom/Kconfig"
+source "drivers/power/lenovo/Kconfig"

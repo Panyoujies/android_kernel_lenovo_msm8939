@@ -11,6 +11,7 @@
 	soc { };
 	chosen { };
 	aliases { };
+	rkm_log { }; //lenovo sw, yexh1, add lastkmsg feature
 	memory {
 		#address-cells = <1>;
 		#size-cells = <1>;

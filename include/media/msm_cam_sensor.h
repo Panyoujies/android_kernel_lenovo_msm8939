@@ -250,6 +250,9 @@ enum eeprom_cfg_type_t {
 
 struct eeprom_get_t {
 	uint32_t num_bytes;
+/*+begin xujt1 add eeprom checksum function 2014-07-11*/
+        uint8_t is_3a_checksumed;
+/*+end*/
 };
 
 struct eeprom_read_t {

@@ -775,6 +775,18 @@ config SENSORS_AKM09911
 	  To compile this driver as a module, choose M here: the
 	  module will be called akm09911.
 
+#lenovo-sw caoyi add for M-sensor 20150310 begin
+config SENSORS_AKM09911_LENOVO
+	tristate "AKM09911 3-axis electronic compass sensor driver"
+	depends on I2C
+	help
+	  Say Y here if you want to enable the akm09911 ecompass sensor
+	  driver.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called akm09911.
+#lenovo-sw caoyi add for M-sensor 20150310 end
+
 config SENSORS_AKM8963
 	tristate "AKM8963 3-axis electronic compass sensor driver"
 	depends on I2C
@@ -849,6 +861,33 @@ config SENSORS_BMI058
 	help
 	 If you say yes here, you get support for Bosch Sensortec's
 	 sensor driver of BMI058.
+
+#lenovo-sw caoyi1 add for P and L sensor begin
+config SENSORS_LTR559_LENOVO
+	tristate "LTR559 alsps sensor support"
+	depends on I2C
+	help
+	 If you say yes here, you get support for LTR559.
+#lenovo-sw caoyi1 add for P and L sensor end
+
+#lenovo-sw caoyi1 add for Gsensor 20150418 begin
+config INPUT_KIONIX_ACCEL_LENOVO
+	tristate "KIONIX_ACCEL"
+	depends on I2C=y
+	help
+	  If you say yes here you get support for the Kionix digital 3-axis
+	  accelerometer.
+	  This driver can also be built as a module. If so, the module will be
+	  called kionix_accel.
+#lenovo-sw caoyi1 add for Gsensor 20150418 end
+
+#lenovo-sw chenzz3 add for fingerprint begin
+config FINGERPRINT_IN_QSEE
+	tristate "synaptics fingerprint sensor for lenovo"
+	default n
+	help
+	 If you say yes here, you get support for fingerprint.
+#lenovo-sw chenzz3 add for fingerprint end
 
 endif
 

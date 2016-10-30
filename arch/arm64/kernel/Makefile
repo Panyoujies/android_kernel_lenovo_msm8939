@@ -33,6 +33,10 @@ arm64-obj-$(CONFIG_JUMP_LABEL)		+= jump_label.o
 arm64-obj-$(CONFIG_KGDB)		+= kgdb.o
 arm64-obj-$(CONFIG_EFI)			+= efi.o efi-stub.o efi-entry.o
 
+#lenovo sw, yexh1, add lastkmsg feature
+obj-$(CONFIG_LENOVO_DEBUG_RKM)		+= le_rkm.o
+#lenovo sw, yexh1, end
+
 obj-$(CONFIG_SWP_EMULATE)	+= swp_emulate.o
 
 obj-$(CONFIG_PCI)                      += pcibios.o

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -790,26 +790,8 @@ static void subsystem_restart_wq_func(struct work_struct *work)
 		track = &dev->track;
 	}
 
-	/*
-	 * If a system reboot/shutdown is under way, ignore subsystem errors.
-	 * However, print a message so that we know that a subsystem behaved
-	 * unexpectedly here.
-	 */
-	if (system_state == SYSTEM_RESTART
-		|| system_state == SYSTEM_POWER_OFF) {
-		WARN(1, "SSR aborted: %s, system reboot/shutdown is under way\n",
-			desc->name);
-		return;
-	}
-
 	mutex_lock(&track->lock);
 	do_epoch_check(dev);
-
-	if (dev->track.state == SUBSYS_OFFLINE) {
-		mutex_unlock(&track->lock);
-		WARN(1, "SSR aborted: %s subsystem not online\n", desc->name);
-		return;
-	}
 
 	/*
 	 * It's necessary to take the registration lock because the subsystem
@@ -1494,6 +1476,13 @@ struct subsys_device *subsys_register(struct subsys_desc *desc)
 	subsys->dev.release = subsys_device_release;
 	subsys->notif_state = -1;
 	subsys->desc->sysmon_pid = -1;
+
+//lenovo sw, yexh1 add for set the modem resart level to RELATED at init
+	if (!strcmp(desc->name, "modem")){
+		subsys->restart_level = RESET_SUBSYS_COUPLED;
+		pr_info("set the %s restart level to RELATED'\n", desc->name);
+	}
+//lenovo sw, yexh1 end
 
 	subsys->notify = subsys_notif_add_subsys(desc->name);
 

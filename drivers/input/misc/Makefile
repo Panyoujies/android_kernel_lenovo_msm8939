@@ -86,3 +86,13 @@ endif
 ifeq ($(CONFIG_BOSCH_BMA2X2_ENABLE_INT2),y)
 	EXTRA_CFLAGS += -DBMA2X2_ENABLE_INT2
 endif
+
+#lenovo-sw caoyi1 add for sensor 20151207 begin
+obj-$(CONFIG_SENSORS_LTR559_LENOVO)	+= ltr559_lenovo.o
+obj-$(CONFIG_INPUT_KIONIX_ACCEL_LENOVO)	+= kionix_accel_lenovo.o
+obj-$(CONFIG_SENSORS_AKM09911_LENOVO)	+= akm09911_lenovo.o
+#lenovo-sw caoyi1 add for sensor 20151207 end
+
+#lenovo-sw chenzz3 add for fingerprint begin
+obj-$(CONFIG_FINGERPRINT_IN_QSEE) += vfsSpiDrv.o
+#lenovo-sw chenzz3 add for fingerprint end
