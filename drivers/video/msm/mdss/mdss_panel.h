@@ -215,6 +215,9 @@ enum mdss_intf_events {
 	MDSS_EVENT_DSI_DYNAMIC_SWITCH,
 	MDSS_EVENT_REGISTER_RECOVERY_HANDLER,
 	MDSS_EVENT_DSI_PANEL_STATUS,
+	#ifdef CONFIG_FB_LENOVO_LCD_EFFECT
+	MDSS_EVENT_LENOVO_PANEL_EFFECT,/*lenovo.sw2 houdz add for lcd effect*/
+	#endif
 };
 
 struct lcd_panel_info {

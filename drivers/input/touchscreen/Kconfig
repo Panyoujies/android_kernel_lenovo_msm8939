@@ -10,7 +10,10 @@ menuconfig INPUT_TOUCHSCREEN
 	  If unsure, say Y.
 
 if INPUT_TOUCHSCREEN
-
+# Begin, lenovo-sw wengjun1 add 2015-3-1, add for touchpanel config.
+source "drivers/input/touchscreen/lenovo/gt9xx_passion/Kconfig"
+source "drivers/input/touchscreen/lenovo/gt1151/Kconfig"
+# End, lenovo-sw wengjun1 add 2015-3-1, add for touchpanel config.
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
 
 config TOUCHSCREEN_88PM860X
@@ -1018,16 +1021,16 @@ config TOUCHSCREEN_SYNAPTICS_DSX_FW_UPDATE
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called synaptics_dsx_fw_update.
-
+# Begin, lenovo-sw wengjun1 modify 2015-3-1, modify for touchpanel config.
 config SECURE_TOUCH
 	bool "Secure Touch"
 	depends on (TOUCHSCREEN_ATMEL_MXT || TOUCHSCREEN_SYNAPTICS_I2C_RMI4 || \
-	  TOUCHSCREEN_SYNAPTICS_DSX_I2C_v21 || TOUCHSCREEN_ATMEL_MAXTOUCH_TS)
+	  TOUCHSCREEN_SYNAPTICS_DSX_I2C_v21 || TOUCHSCREEN_ATMEL_MAXTOUCH_TS || TOUCHSCREEN_GT9XX_S)
 	help
 	  Say Y here to enable Secure Touch in supported drivers.
 
 	  If unsure, say N.
-
+# End, lenovo-sw wengjun1 modify 2015-3-1, modify for touchpanel config.
 config TOUCHSCREEN_GT9XX
 	bool "Goodix touchpanel GT9xx series"
 	depends on I2C

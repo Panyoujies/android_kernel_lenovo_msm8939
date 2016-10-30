@@ -44,6 +44,9 @@
    and provided to the battery driver in the units desired for
    their framework which is 0.1DegC. True resolution of 0.1DegC
    will result in the below table size to increase by 10 times */
+   
+/*lenovo-sw weiweij added for temperature*/   
+#if 0
 static const struct qpnp_vadc_map_pt adcmap_btm_threshold[] = {
 	{-300,	1642},
 	{-200,	1544},
@@ -129,6 +132,64 @@ static const struct qpnp_vadc_map_pt adcmap_btm_threshold[] = {
 	{780,	208},
 	{790,	203}
 };
+#endif
+static const struct qpnp_vadc_map_pt adcmap_btm_threshold[] = {
+/*r1=13.7k and r2=3.3k*/
+	{-400,	1666},
+	{-200,	1496},
+	{-180,	1473},
+	{-160,	1450},
+	{-140,	1425},
+	{-120,	1400},
+	{-100,	1373},
+	{-80,	1346},
+	{-60,	1318},
+	{-40,	1290},
+	{-20,	1261},
+	{0,	1232},
+	{20,	1203},
+	{40,	1173},
+	{60,	1144},
+	{80,	1114},
+	{100,	1085},
+	{120,	1056},
+	{140,	1027},
+	{160,	994},
+	{180,	971},
+	{200,	944},
+	{220,	917},
+	{240,	891},
+	{260,	866},
+	{280,	842},
+	{300,	819},
+	{320,	796},
+	{340,	774},
+	{360,	753},
+	{380,	732},
+	{400,	713},
+	{420,	695},
+	{440,	677},
+	{460,	660},
+	{480,	644},
+	{500,	629},
+	{520,	614},
+	{540,	600},
+	{560,	587},
+	{580,	575},
+	{600,	563},
+	{620,	552},
+	{640,	541},
+	{660,	531},
+	{680,	522},
+	{700,	513},
+	{720,	504},
+	{740,	496},
+	{760,	488},
+	{780,	481},
+	{800,	475},
+};
+/*lenovo-sw weiweij added for temperature end*/   
+
 
 static const struct qpnp_vadc_map_pt adcmap_qrd_btm_threshold[] = {
 	{-200,	1540},

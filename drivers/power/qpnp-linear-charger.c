@@ -210,6 +210,9 @@ static enum power_supply_property msm_batt_power_props[] = {
 	POWER_SUPPLY_PROP_COOL_TEMP,
 	POWER_SUPPLY_PROP_WARM_TEMP,
 	POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL,
+/*lenovo-sw weiweij added for vbus voltage*/		
+	POWER_SUPPLY_PROP_INPUT_VOLTAGE_REGULATION,
+/*lenovo-sw weiweij added for vbus voltage end*/		
 };
 
 static char *pm_batt_supplied_to[] = {
@@ -630,6 +633,61 @@ static u8 qpnp_lbc_get_trim_val(struct qpnp_lbc_chip *chip)
 
 	return vddtrim_map[i].trim_val;
 }
+
+/*lenovo-sw weiweij add for s7 relative changes*/
+static struct qpnp_lbc_chip *tmp_chip=NULL;
+static int ovp_exist = 0;
+#define USB_PTH_STS_REG                                0x09
+#define USB_IN_OVP_MASK                      LBC_MASK(7, 6)	
+static int qpnp_lbc_is_usb_chg_ovp(struct qpnp_lbc_chip *chip)
+{
+	u8 usbin_valid_rt_sts;
+	int rc;
+
+	rc = qpnp_lbc_read(chip, chip->usb_chgpth_base + USB_PTH_STS_REG,
+				&usbin_valid_rt_sts, 1);
+	if (rc) {
+		pr_err("spmi read failed: addr=%03X, rc=%d\n",
+				chip->usb_chgpth_base + USB_PTH_STS_REG, rc);
+		return rc;
+	}
+
+	pr_info("rt_sts 0x%x\n", usbin_valid_rt_sts);
+	if(usbin_valid_rt_sts & 0x40)
+	    ovp_exist = 1;
+
+	rc = (usbin_valid_rt_sts & 0xc0);
+	return  (rc==0x40)? 1 : 0;
+}
+
+static int qpnp_lbc_is_usb_chg_connected(struct qpnp_lbc_chip *chip)
+{
+	u8 usbin_valid_rt_sts;
+	int rc;
+
+	rc = qpnp_lbc_read(chip, chip->usb_chgpth_base + USB_PTH_STS_REG,
+				&usbin_valid_rt_sts, 1);
+	if (rc) {
+		pr_err("spmi read failed: addr=%03X, rc=%d\n",
+				chip->usb_chgpth_base + USB_PTH_STS_REG, rc);
+		return rc;
+	}
+
+	pr_info("rt_sts 0x%x\n", usbin_valid_rt_sts);
+	if(usbin_valid_rt_sts & 0x40)
+	    ovp_exist = 1;
+
+	return (usbin_valid_rt_sts & USB_IN_OVP_MASK) ? 1 : 0;
+}
+
+int is_charger_plug_in(void)
+{
+	if(tmp_chip!=NULL)
+		return qpnp_lbc_is_usb_chg_connected(tmp_chip);
+	else 
+		return 0;
+}
+/*lenovo-sw weiweij add for s7 relative changes end*/
 
 static int qpnp_lbc_is_usb_chg_plugged_in(struct qpnp_lbc_chip *chip)
 {
@@ -1204,6 +1262,22 @@ out:
 	return rc;
 }
 
+/*lenovo-sw weiweij added for getting vbus voltage*/
+static int get_prop_vbus_voltage_now(struct qpnp_lbc_chip *chip)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+
+	rc = qpnp_vadc_read(chip->vadc_dev, USBIN, &results);
+	if (rc) {
+		pr_err("Unable to read usbin rc=%d\n", rc);
+		return 0;
+	}
+
+	return results.physical;
+}
+/*lenovo-sw weiweij added for getting vbus voltage end*/
+
 static int get_prop_battery_voltage_now(struct qpnp_lbc_chip *chip)
 {
 	int rc = 0;
@@ -1347,6 +1421,191 @@ static int get_prop_capacity(struct qpnp_lbc_chip *chip)
 	 */
 	return DEFAULT_CAPACITY;
 }
+
+/*lenovo-sw weiweij added for s7 relative changes*/
+#include <linux/delay.h>
+
+#define BOARD_WARM_TEMP_VOL 575000
+const static int ntc_buf_num = 25;
+typedef struct ntc_struct
+{
+	int temp;
+	int res;
+}ntc_struct;
+
+static ntc_struct ntc_buf[] = {
+	{ -20 , 1151 },
+    { -15 , 847 },
+    { -10 , 629 },
+    { -5 , 472 },
+    { 0 , 357 },
+    { 5 , 273 },
+    { 10 , 210 },
+    { 15 , 163 },
+    { 20 , 127 },
+    { 25 , 100 },
+    { 30 , 79 },
+    { 35 , 63 },
+    { 40 , 51 },
+    { 45 , 41 },
+    { 50 , 33 },
+    { 55 , 27 },
+    { 60 , 22 },
+    { 65 , 18 },
+    { 70 , 15 },
+    { 75 , 13 },
+    { 80 , 11 },
+    { 85, 9},
+    { 90, 7},   
+    { 95, 6},      
+    { 100, 5},       
+};
+static int res2temp(int res)
+{
+	int i;
+	int temp;
+	static int aceess_flag = 1;
+	
+	if(aceess_flag==0)
+	{
+		pr_err("get_ntc_temp already accessed, return\n");
+		return -1;
+	}
+
+	aceess_flag = 0;
+	
+	for(i=0;i<ntc_buf_num;i++)
+	{
+		if(ntc_buf[0].res<=res)
+		{
+			temp = -20;
+			break;
+		}
+
+		if(ntc_buf[ntc_buf_num-1].res>=res)
+		{
+			temp = 80;
+			break;
+		}
+		
+		if((ntc_buf[i].res<res)&&(ntc_buf[i-1].res>=res))
+		{
+			//pr_err("ww_debug ntc_buf[i].res %d, ntc_buf[i-1].res %d ntc_buf[i-1].temp %d, ntc_buf[i].temp %d \n", ntc_buf[i].res, ntc_buf[i-1].res, ntc_buf[i-1].temp, ntc_buf[i].temp);
+			temp = (ntc_buf[i-1].res - res)*5/(ntc_buf[i-1].res - ntc_buf[i].res) + ntc_buf[i-1].temp;
+			break;
+		}
+			
+	}
+
+
+	
+	aceess_flag = 1;
+	
+	return temp;
+}
+
+static int volt2res(int volt)
+{
+	int ret;
+
+	ret = volt*100/(1800000 - volt);
+	
+	return ret;
+}
+static int get_board_volt(void)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+
+	//tmp change
+	//return -1;
+	
+	if(tmp_chip == NULL)
+		return -1;
+	rc = qpnp_vadc_read(tmp_chip->vadc_dev, P_MUX2_1_1, &results);
+	if (rc) {
+		pr_err("Unable to read batt ID rc=%d\n", rc);
+		return -1;
+	}
+	return (int)results.physical;
+}
+
+int get_board_temp(void)
+{
+	int i;
+	const int cnt_num = 6;
+	int sum, avr;
+	int max_val, min_val;
+	int ret;
+	
+	sum = 0;
+	
+	//get
+	for(i=0;i<cnt_num;i++)
+	{
+		ret = get_board_volt();
+		if (ret<0) {
+			pr_err("Unable to read batt temperature rc=%d\n", ret);
+			return -1;
+		}
+
+		//pr_err(" ww_Debug cnt %d  vol = %d\n",  i,ret);
+
+		if(i==0)
+		{
+			max_val = ret;
+			min_val = ret;
+		}else
+		{
+			if(ret>max_val)
+				max_val = ret;
+			else if(ret<min_val)
+				min_val = ret;
+		}
+		
+		sum += ret;
+		
+		usleep(1000);
+	}
+
+	//sum
+	sum = sum - min_val - max_val;
+	avr = sum /(cnt_num-2);
+	
+	ret = volt2res(avr);
+	
+	return res2temp(ret)*10;
+}
+
+bool need_dec_chg_current(void)
+{
+	int board_temp = get_board_temp();
+	pr_info("board temp is %d\n", board_temp);
+
+	return false;
+/*lenovo-sw weiweij removed*/	
+/*	if(board_temp > 0 && board_temp < BOARD_WARM_TEMP_VOL)
+		return true;
+	else
+		return false;*/
+/*lenovo-sw weiweij removed end*/	
+}
+
+int get_batt_id_volt(void)
+{
+	int rc = 0;
+	struct qpnp_vadc_result results;
+	
+	if(tmp_chip == NULL)
+		return -1;
+	rc = qpnp_vadc_read(tmp_chip->vadc_dev, LR_MUX2_BAT_ID, &results);
+	if (rc) {
+		pr_err("Unable to read batt ID rc=%d\n", rc);
+		return -1;
+	}
+	return (int)results.physical;
+}
+/*lenovo-sw weiweij added for s7 relative changes end*/
 
 #define DEFAULT_TEMP		250
 static int get_prop_batt_temp(struct qpnp_lbc_chip *chip)
@@ -1725,6 +1984,11 @@ static int qpnp_batt_power_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL:
 		val->intval = chip->therm_lvl_sel;
 		break;
+/*lenovo-sw weiweij added for vbus voltage*/
+	case POWER_SUPPLY_PROP_INPUT_VOLTAGE_REGULATION:
+		val->intval = get_prop_vbus_voltage_now(chip);
+		break;
+/*lenovo-sw weiweij added for vbus voltage end*/
 	default:
 		return -EINVAL;
 	}
@@ -2463,6 +2727,10 @@ static irqreturn_t qpnp_lbc_usbin_valid_irq_handler(int irq, void *_chip)
 	unsigned long flags;
 
 	usb_present = qpnp_lbc_is_usb_chg_plugged_in(chip);
+	if(usb_present == 0)
+	{
+		usb_present = qpnp_lbc_is_usb_chg_ovp(chip);
+	}
 	pr_debug("usbin-valid triggered: %d\n", usb_present);
 
 	if (chip->usb_present ^ usb_present) {
@@ -2511,6 +2779,21 @@ static irqreturn_t qpnp_lbc_usbin_valid_irq_handler(int irq, void *_chip)
 
 	return IRQ_HANDLED;
 }
+
+/*lenovo-sw weiweij added for s7 relative changes*/
+//when ovp occur, pm8916 can't detect the charger unplugged event, so do double check in bq24192 driver
+void do_double_check_for_usb_unplug(void)
+{
+	if(tmp_chip != NULL)
+	{
+		if(ovp_exist == 1)
+		{
+			qpnp_lbc_usbin_valid_irq_handler(tmp_chip->irqs[USBIN_VALID].irq, tmp_chip);
+			ovp_exist = 0;
+		}
+	}
+}
+/*lenovo-sw weiweij added for s7 relative changes end*/
 
 static int qpnp_lbc_is_batt_temp_ok(struct qpnp_lbc_chip *chip)
 {
@@ -3253,7 +3536,9 @@ static int qpnp_lbc_main_probe(struct spmi_device *spmi)
 
 	if (chip->bat_if_base) {
 		chip->batt_present = qpnp_lbc_is_batt_present(chip);
-		chip->batt_psy.name = "battery";
+/*lenovo-sw weiweij modified for s7 relative changes*/		
+		chip->batt_psy.name = "battery_qpnp";
+/*lenovo-sw weiweij modified for s7 relative changes end*/		
 		chip->batt_psy.type = POWER_SUPPLY_TYPE_BATTERY;
 		chip->batt_psy.properties = msm_batt_power_props;
 		chip->batt_psy.num_properties =
@@ -3341,6 +3626,10 @@ static int qpnp_lbc_main_probe(struct spmi_device *spmi)
 			get_prop_batt_present(chip),
 			get_prop_battery_voltage_now(chip),
 			get_prop_capacity(chip));
+
+/*lenovo-sw weiweij added for s7 relative changes*/
+	tmp_chip = chip;
+/*lenovo-sw weiweij added for s7 relative changes end*/
 
 	return 0;
 

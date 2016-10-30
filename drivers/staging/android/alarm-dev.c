@@ -29,8 +29,15 @@
 #define ANDROID_ALARM_PRINT_IO (1U << 1)
 #define ANDROID_ALARM_PRINT_INT (1U << 2)
 
-static int debug_mask = ANDROID_ALARM_PRINT_INFO;
+//lenovo sw yexh1 add for power-off alarm
+static int debug_mask = ANDROID_ALARM_PRINT_INFO|ANDROID_ALARM_PRINT_IO|ANDROID_ALARM_PRINT_INT;
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
+#ifndef LENOVO_ALARM
+#define LENOVO_ALARM
+#endif
+//lenovo sw yexh1 add for power-off alarm, end
+
+extern void alarm_set_real_rtc(int alarm_type,  struct timespec new_alarm_time);
 
 #define alarm_dbg(debug_level_mask, fmt, ...)				\
 do {									\
@@ -42,6 +49,12 @@ do {									\
 	ANDROID_ALARM_RTC_WAKEUP_MASK | \
 	ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP_MASK | \
 	ANDROID_ALARM_RTC_POWEROFF_WAKEUP_MASK)
+
+//lenovo sw yexh1 add for power-off alarm
+#define ANDROID_ALARM_RTC_DEVICEUP 6
+#define pwoff_mask (1U << ANDROID_ALARM_RTC_POWEROFF_WAKEUP)
+#define deviceup_mask (1U << ANDROID_ALARM_RTC_DEVICEUP)
+//lenovo sw yexh1 add for power-off alarm, end
 
 static int alarm_opened;
 static DEFINE_SPINLOCK(alarm_slock);
@@ -130,9 +143,20 @@ static void alarm_set(enum android_alarm_type alarm_type,
 	alarm_enabled |= alarm_type_mask;
 	devalarm_start(&alarms[alarm_type], timespec_to_ktime(*ts));
 	spin_unlock_irqrestore(&alarm_slock, flags);
+	
+//lenovo sw yexh1 add for power-off alarm	
+	#ifdef LENOVO_ALARM
+      	if (alarm_type == ANDROID_ALARM_RTC_POWEROFF_WAKEUP)
+        {
+                alarm_set_real_rtc(alarm_type, *ts);
+        }
+	#else
 
 	if (alarm_type == ANDROID_ALARM_RTC_POWEROFF_WAKEUP)
 		set_power_on_alarm(ts->tv_sec, 1);
+       #endif
+//lenovo sw yexh1 add for power-off alarm, end
+
 	mutex_unlock(&alarm_mutex);
 }
 
@@ -154,6 +178,17 @@ static int alarm_wait(void)
 		return rv;
 
 	spin_lock_irqsave(&alarm_slock, flags);
+//lenovo sw yexh1 add for power-off alarm
+		if (alarm_pending & pwoff_mask)
+		{
+			printk("alarm_pending &= ~ pwoff_mask =%d \r\n",alarm_pending);
+			alarm_pending &= ~ pwoff_mask;
+			alarm_pending |= deviceup_mask;
+			printk("alarm_pending |= deviceup_mask =%d \r\n",alarm_pending);
+                    
+		}
+//lenovo sw yexh1 add for power-off alarm, end
+
 	rv = alarm_pending;
 	wait_pending = 1;
 	alarm_pending = 0;
@@ -170,6 +205,14 @@ static int alarm_set_rtc(struct timespec *ts)
 	int rv = 0;
 
 	rtc_time_to_tm(ts->tv_sec, &new_rtc_tm);
+//lenovo sw , yexh1 add log for rtc time set
+	alarm_dbg(INFO, "set rtc %ld %ld - rtc %02d:%02d:%02d %02d/%02d/%04d\n",
+	ts->tv_sec, ts->tv_nsec,
+	new_rtc_tm.tm_hour, new_rtc_tm.tm_min,
+	new_rtc_tm.tm_sec, new_rtc_tm.tm_mon + 1,
+	new_rtc_tm.tm_mday,
+	new_rtc_tm.tm_year + 1900);
+//lenovo sw, yexh1 end 
 	rtc_dev = alarmtimer_get_rtcdev();
 	rv = do_settimeofday(ts);
 	if (rv < 0)
@@ -216,6 +259,13 @@ static long alarm_do_ioctl(struct file *file, unsigned int cmd,
 	unsigned long flags;
 	enum android_alarm_type alarm_type = ANDROID_ALARM_IOCTL_TO_TYPE(cmd);
 
+//lenovo sw yexh1 add for power-off alarm
+	if (alarm_type == ANDROID_ALARM_RTC_DEVICEUP) {
+		alarm_type = ANDROID_ALARM_RTC_POWEROFF_WAKEUP;
+		//set_alarm_rtc_deviceup_type(1);
+	}
+//lenovo sw yexh1 add for power-off alarm, end
+	
 	if (alarm_type >= ANDROID_ALARM_TYPE_COUNT)
 		return -EINVAL;
 

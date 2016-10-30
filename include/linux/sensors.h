@@ -144,6 +144,33 @@ struct sensors_classdev {
 	unsigned int		max_latency;
 	char			*params;
 	struct cal_result_t	cal_result;
+	/* Begin, lenovo-sw youwc1: for all sensor raw data */
+	union {
+		int proximity;
+		int light;
+		struct {
+			int x;
+			int y;
+			int z;
+		};
+	} raw_data;
+	/* End, lenovo-sw youwc1: for all sensor raw data */
+
+	/* Begin, lenovo-sw youwc1: for sensors cali data */
+	union {
+		struct {
+			int offset_x;
+			int offset_y;
+			int offset_z;
+		};
+		struct {
+			int pscali;
+			int piht;
+			int pilt;
+		};
+	} cali_result;
+	/* End, lenovo-sw youwc1: for sensors cali data */
+	
 	/* enable and disable the sensor handle*/
 	int	(*sensors_enable)(struct sensors_classdev *sensors_cdev,
 					unsigned int enabled);

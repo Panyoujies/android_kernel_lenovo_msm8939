@@ -610,8 +610,10 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	 * data lanes for LP11 init
 	 */
 	if (mipi->lp11_init) {
+		#if 0//lenovo.sw2 houdz1 modify
 		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 			pr_debug("reset enable: pinctrl not enabled\n");
+		#endif
 		mdss_dsi_panel_reset(pdata, 1);
 	}
 
@@ -694,6 +696,8 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 	struct mipi_panel_info *mipi;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 
+	printk("%s:start\n", __func__); //lenoco.sw2 houdz add
+
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
@@ -733,11 +737,20 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 		if (mdss_dsi_is_te_based_esd(ctrl_pdata))
 			enable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
 	}
+	/*begin:lenovo.sw2 houdz1 add for p1 esd check*/
+	else if (pdata->panel_info.type == MIPI_VIDEO_PANEL){
+		if (mdss_dsi_is_te_based_esd(ctrl_pdata))
+		{
+			//mdss_dsi_set_tear_on(ctrl_pdata);
+			enable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
+		}
+	}
+	/*end:lenovo.sw2 houdz1 add for p1 esd check*/
 
 error:
 	mdss_dsi_clk_ctrl(ctrl_pdata, DSI_ALL_CLKS, 0);
 	pr_debug("%s-:\n", __func__);
-
+	printk("%s:end\n", __func__); //lenoco.sw2 houdz add
 	return ret;
 }
 
@@ -746,6 +759,8 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 	int ret = 0;
 	struct mipi_panel_info *mipi;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+
+	printk("%s:start\n", __func__); //lenoco.sw2 houdz add
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -796,6 +811,15 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 		}
 		mdss_dsi_set_tear_off(ctrl_pdata);
 	}
+	/*begin:lenovo.sw2 houdz1 add for p1 esd check*/
+	else if (pdata->panel_info.type == MIPI_VIDEO_PANEL){
+		if (mdss_dsi_is_te_based_esd(ctrl_pdata)){
+			disable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
+			atomic_dec(&ctrl_pdata->te_irq_ready);
+			//mdss_dsi_set_tear_off(ctrl_pdata);
+		}
+	}
+	/*end:lenovo.sw2 houdz1 add for p1 esd check*/
 
 	if (ctrl_pdata->ctrl_state & CTRL_STATE_PANEL_INIT) {
 		if (!pdata->panel_info.dynamic_switch_pending) {
@@ -1255,6 +1279,12 @@ static int mdss_dsi_clk_refresh(struct mdss_panel_data *pdata)
 	return rc;
 }
 
+/*lenovo.sw2 houdz1 add for lcd effect begin*/	
+#ifdef CONFIG_FB_LENOVO_LCD_EFFECT	
+extern int lenovo_lcd_effect_handle(struct mdss_dsi_ctrl_pdata *ctrl_data,struct hal_panel_ctrl_data *hal_ctrl_data);
+#endif
+/*lenovo.sw2 houdz1 add for lcd effect end*/
+
 static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 				  int event, void *arg)
 {
@@ -1355,6 +1385,14 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		if (ctrl_pdata->check_status)
 			rc = ctrl_pdata->check_status(ctrl_pdata);
 		break;
+/*lenovo.sw2 houdz1 add for lcd effect begin*/	
+#ifdef CONFIG_FB_LENOVO_LCD_EFFECT	
+	case MDSS_EVENT_LENOVO_PANEL_EFFECT:
+		pr_info("%s:  MDSS_EVENT_LENOVO_PANEL_EFFECT\n",__func__);
+		rc = lenovo_lcd_effect_handle(ctrl_pdata,(struct hal_panel_ctrl_data *)arg);
+		break;
+#endif
+/*lenovo.sw2 houdz1 add for lcd effect end*/
 	default:
 		pr_debug("%s: unhandled event=%d\n", __func__, event);
 		break;
@@ -1454,6 +1492,10 @@ end:
 
 	return dsi_pan_node;
 }
+
+#ifdef CONFIG_FB_LENOVO_LCD_EFFECT
+extern int lenovo_lcd_effect_init(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
+#endif
 
 static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 {
@@ -1582,6 +1624,12 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 		pr_err("%s: dsi panel init failed\n", __func__);
 		goto error_pan_node;
 	}
+
+	/*lenovo.sw2 houdz1 add for lenovo lcd effect start*/
+	#ifdef CONFIG_FB_LENOVO_LCD_EFFECT
+		lenovo_lcd_effect_init(ctrl_pdata);
+	#endif
+	/*lenovo.sw2 houdz1 add for lenovo lcd effect end*/	
 
 	rc = dsi_panel_device_register(dsi_pan_node, ctrl_pdata);
 	if (rc) {
@@ -1852,6 +1900,22 @@ int dsi_panel_device_register(struct device_node *pan_node,
 
 	pinfo->panel_max_fps = mdss_panel_get_framerate(pinfo);
 	pinfo->panel_max_vtotal = mdss_panel_get_vtotal(pinfo);
+
+	/*lenovo.sw2 houdz1 add begin*/
+	ctrl_pdata->disp_vsp_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+		"qcom,platform-vsp-gpio", 0);
+
+	if (!gpio_is_valid(ctrl_pdata->disp_vsp_gpio))
+		pr_err("%s:%d, Disp_vsp gpio not specified\n",
+						__func__, __LINE__);
+
+	ctrl_pdata->disp_vsn_gpio = of_get_named_gpio(ctrl_pdev->dev.of_node,
+		"qcom,platform-vsn-gpio", 0);
+
+	if (!gpio_is_valid(ctrl_pdata->disp_vsn_gpio))
+		pr_err("%s:%d, Disp_vsn gpio not specified\n",
+						__func__, __LINE__);
+	/*lenovo.sw2 houdz1 add end*/
 
 	/*
 	 * If disp_en_gpio has been set previously (disp_en_gpio > 0)

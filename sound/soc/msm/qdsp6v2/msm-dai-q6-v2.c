@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -110,6 +110,9 @@ static const char *const mi2s_format[] = {
 	"Compr-60958"
 };
 
+/* lenovo-sw zhouwl, 2014-11-25,add for quat mi2s control */
+extern atomic_t quat_mi2s_clk_ref;
+/* lenovo-sw zhouwl, 2014-11-25,add for quat mi2s control */
 static const struct soc_enum mi2s_config_enum[] = {
 	SOC_ENUM_SINGLE_EXT(4, mi2s_format),
 };
@@ -1666,7 +1669,7 @@ static int msm_auxpcm_dev_probe(struct platform_device *pdev)
 		goto fail_pdata_nomem;
 	}
 
-	dev_dbg(&pdev->dev, "%s: dev %pK, dai_data %pK, auxpcm_pdata %pK\n",
+	dev_dbg(&pdev->dev, "%s: dev %p, dai_data %p, auxpcm_pdata %p\n",
 		__func__, &pdev->dev, dai_data, auxpcm_pdata);
 
 	rc = of_property_read_u32_array(pdev->dev.of_node,
@@ -2602,6 +2605,19 @@ static void msm_dai_q6_mi2s_shutdown(struct snd_pcm_substream *substream,
 				__func__, port_id);
 	}
 
+/* lenovo-sw zhouwl, 2014-11-25,add for quat mi2s control */
+	if ((atomic_read(&quat_mi2s_clk_ref) >= 1) && (port_id == AFE_PORT_ID_QUATERNARY_MI2S_RX)) {
+		printk(KERN_DEBUG "[%s]quat_mi2s_clk_ref is using...port_id=%#x\n", __func__, port_id);
+		if (test_bit(STATUS_PORT_STARTED, dai_data->status_mask)) {
+			clear_bit(STATUS_PORT_STARTED, dai_data->status_mask);
+		}
+
+		if (test_bit(STATUS_PORT_STARTED, dai_data->hwfree_status)) {
+	       clear_bit(STATUS_PORT_STARTED, dai_data->hwfree_status);
+		}
+		return;
+	}
+/* lenovo-sw zhouwl, 2014-11-25,add for quat mi2s control */
 	dev_dbg(dai->dev, "%s: closing afe port id = 0x%x\n",
 			__func__, port_id);
 

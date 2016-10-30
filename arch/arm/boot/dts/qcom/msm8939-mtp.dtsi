@@ -14,6 +14,36 @@
 #include "msm8939-camera-sensor-mtp.dtsi"
 
 &soc {
+    /* lenovo-sw, chenzz3, lock spi in trustzone, begin */
+    fingerprint@0 {
+        /* driver name */
+        compatible = "validity,metallicatee";
+        /* pinctrl for spi */
+        /*qcom,use-pinctrl;
+        pinctrl-names = "default", "sleep";
+        pinctrl-0 = <&spi0_default &spi0_cs0_active>;
+        pinctrl-1 = <&spi0_sleep &spi0_cs0_sleep>;*/
+        /* clock for spi */
+        clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
+                 <&clock_gcc clk_gcc_blsp1_qup3_spi_apps_clk>;
+        clock-names = "iface_clk", "core_clk";
+        /* pass BLSP ID to TZ */
+        qcom,qup-id = <3>;
+        /* other setting */
+        qcom,master-id = <86>;
+        /*reg = <0>;
+        spi-max-frequency = <11000000>;*/
+        /* sensor configuration */
+        interrupt-parent = <&msm_gpio>;
+        interrupts = <121 0>;
+        synaptics,gpio_drdy = <&msm_gpio 121 0x1>;
+        synaptics,gpio_sleep = <&msm_gpio 120 0x0>;
+        synaptics,gpio_3p3v = <&msm_gpio 82 0x1>;
+        vdd-supply = <&pm8916_l16>;
+        qcom,vdd-voltage-level = <1800000 1800000>;
+        qcom,vdd-current-level = <200 400000>;
+    };
+    /* lenovo-sw, chenzz3, lock spi in trustzone, end */
 	i2c@78b9000 { /* BLSP1 QUP5 */
 		synaptics@20 {
 			compatible = "synaptics,dsx";
@@ -39,6 +69,43 @@
 			 <&clock_gcc clk_gcc_blsp1_qup5_i2c_apps_clk>;
 			clock-names = "iface_clk", "core_clk";
 		};
+
+        /* Begin, lenovo-sw wengjun1 add 2015-3-1, add for touchpanel config. */
+		goodix@5d {
+			compatible = "goodix_sisleyl,gt9xx";
+			reg = <0x5d>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0x2008>;
+			vdd-supply = <&pm8916_l17>;
+			vcc_i2c-supply = <&pm8916_l6>;
+			/* pins used by touchscreen */
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend";
+			pinctrl-0 = <&ts_int_active &ts_reset_active>;
+			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;
+			goodix,reset-gpio = <&msm_gpio 12 0x0>;
+			goodix,irq-gpio = <&msm_gpio 13 0x2008>;
+			goodix,ctp-gpio = <&msm_gpio 74 0x0>;
+			//goodix,ldo-en-gpio = <&msmgpio 15 0x00>;
+			goodix,panel-coords = <0 0 1080 1920>;
+			goodix,display-coords = <0 0 1080 1920>;
+			goodix,button-map= <158 102 139>;
+			goodix,family-id = <0x0>;
+		};
+        /* End, lenovo-sw wengjun1 add 2015-3-1, add for touchpanel config. */
+
+        /* Begin, lenovo-sw wengjun1 add 2015-3-1, add for touchpanel config. */
+
+		goodix@14 {
+			compatible = "goodix,gt1x";
+			reg = <0x14>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <13 0x2008>;
+			vdd_ana-supply = <&pm8916_l17>;
+			vcc_i2c-supply = <&pm8916_l6>;
+			goodix,rst-gpio = <&msm_gpio 12 0x00>;
+			goodix,irq-gpio = <&msm_gpio 13 0x00>;
+            };
+        /* End, lenovo-sw wengjun1 add 2015-3-1, add for touchpanel config. */
 	};
 
 	gen-vkeys {
@@ -50,9 +117,51 @@
 		qcom,panel-maxy = <2084>;
 		qcom,key-codes = <158 139 172 217>;
 	};
+	
+	i2c@78b8000 { /* BLSP1 QUP4 */
+	bq2589x_otg_supply: bq2589x@6B {
+			compatible = "ti,bq2589x";
+			reg = <0x6B>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <62 0>;
+			vdd-supply = <&pm8916_l6>;
+			/* pins used by touchscreen 
+			pinctrl-names = "pmx_ts_active","pmx_ts_suspend";
+			pinctrl-0 = <&ts_int_active &ts_reset_active>;
+			pinctrl-1 = <&ts_int_suspend &ts_reset_suspend>;*/
+			charger,en-gpio = <&msm_gpio 52 0x0>;
+			charger,irq-gpio = <&msm_gpio 62 0>;
+			charger,ok-gpio = <&msm_gpio 100 0>;
+			charger,fast-charger-en-gpio = <&msm_gpio 3 0>;
+			//charger,otg-en-gpio = <&msm_gpio 72 0>;
+			charger,otg-short-gpio = <&msm_gpio 75 0>;
+			charger,max-temp = <500>;
+			charger,min-temp = <0>;
+			charger,warm-temp = <460>;
+			charger,cool-temp = <150>;
+			charger,ichg-max = <500>;
+			charger,ibat-max = <2000>;
+			charger,ibat-warm = <2000>;
+			charger,ibat-cool = <480>;
+			charger,vbat-warm = <4112>;
+			charger,vbat-cool = <4352>;
+			charger,vbat-mv = <4352>;
+			charger,iterm-ma = <150>;
+			regulator-name = "bq2589x_otg_vreg";
+		};
+		bq27530@55 {
+			reg = <0x55>;
+	        compatible = "ti,bq27xxx-battery";
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <109 0>;
+			bq27530,fg-int-gpio = <&msm_gpio 109 0>;
+           };
+
+	};
 
 	i2c@78ba000 { /* BLSP1 QUP6 */
-		nfc-nci@e {
+		//lenovo-sw lumy1 remove for bcm nfc
+		/*nfc-nci@e {
 			compatible = "qcom,nfc-nci";
 			reg = <0x0e>;
 			qcom,irq-gpio = <&msm_gpio 21 0x00>;
@@ -67,9 +176,27 @@
 			qcom,clk-gpio = <&pm8916_gpios 2 0>;
 			clocks = <&clock_rpm clk_bb_clk2_pin>;
 			clock-names = "ref_clk";
-		};
+		};*/
 
-		nq@2b {
+	/* lenovo-sw zhangrc2 add for smartpa begin */
+    nxp_tfa9887@34 {
+		compatible = "nxp,tfa9887";
+		reg = <0x34>;
+		vdd-supply = <&pm8916_s3>;
+		vcc_i2c-supply = <&pm8916_l17>;
+        qcom,smartpa-ldo = <&msm_gpio 111 0>;
+		};
+    /* lenovo-sw zhangrc2 add for smartpa end */
+
+	    /*lenovo.sw2 houdz1 add for lm36923 start*/
+		lm36923@36 {
+			compatible = "lenovo,lm36923";
+			reg = <0x36>;
+			vcc_i2c-supply = <&pm8916_l5>;
+		};
+	    /*lenovo.sw2 houdz1 add for lm36923 end*/
+		/* lenovo-sw lumy1 add for brcm2079x nfc*/
+		/*nq@2b {
 			compatible = "qcom,nq-nci";
 			reg = <0x2b>;
 			qcom,nq-irq = <&msm_gpio 21 0x00>;
@@ -85,8 +212,27 @@
 			pinctrl-1 = <&nfc_int_suspend &nfc_disable_suspend>;
 			clocks = <&clock_rpm clk_bb_clk2_pin>;
 			clock-names = "ref_clk";
+		};*/
+		nfc-nci@77 {
+		    compatible = "brcm,bcm2079x";
+		    reg = <0x77>;
+		    brcm,irq-gpio = <&msm_gpio 21 0x00>;
+		    brcm,pwr-gpio = <&msm_gpio 87 0x00>;
+		    brcm,wak-gpio = <&msm_gpio 114 0x00>;
+		    interrupt-parent = <&msm_gpio>;
+		    interrupts = <21 0>;
+		    vcc_i2c-supply = <&pm8916_l5>;
+		    qcom,clk-gpio = <&pm8916_gpios 2 0>;
+		    clocks = <&clock_rpm clk_bb_clk2_pin>;
+		    clock-names = "ref_clk";
 		};
 	};
+/*add by lixh10 for one key power down && home key 2015-03-10 start*/
+	tlmm_pinmux: pinctrl@1000000 {
+			tlmm_gpio_key {
+			qcom,pins = <&gp 107>, <&gp 31>, <&gp 20>;
+			};
+		};
 	gpio_keys {
 		compatible = "gpio-keys";
 		input-name = "gpio-keys";
@@ -94,20 +240,20 @@
 		pinctrl-0 = <&gpio_key_active>;
 		pinctrl-1 = <&gpio_key_suspend>;
 
-		camera_focus {
-			label = "camera_focus";
-			gpios = <&msm_gpio 108 0x1>;
+		onekeylowpower {
+			label = "onekeylowpower";
+			gpios = <&msm_gpio 20 0x1>;
 			linux,input-type = <1>;
-			linux,code = <0x210>;
+			linux,code = <252>;
 			gpio-key,wakeup;
 			debounce-interval = <15>;
 		};
 
-		camera_snapshot {
-			label = "camera_snapshot";
-			gpios = <&msm_gpio 109 0x1>;
+		homepage {
+			label = "homepage";
+			gpios = <&msm_gpio 31 0x1>;
 			linux,input-type = <1>;
-			linux,code = <0x2fe>;
+			linux,code = <172>;
 			gpio-key,wakeup;
 			debounce-interval = <15>;
 		};
@@ -121,8 +267,53 @@
 			debounce-interval = <15>;
 		};
 	};
-
+/*add by lixh10 for one key power down && home key 2015-03-10 end*/
 	i2c@78b6000 { /* BLSP1 QUP2 */
+		/*lenovo-sw caoyi1 add for P-sensor and L-sensor  begin*/
+		ltr@23 { /*ALS and proximity sensor*/
+			compatible = "ltr,ltr559";
+			reg = <0x23>;
+			pinctrl-names = "default","sleep";
+			pinctrl-0 = <&ltr_default>;
+			pinctrl-1 = <&ltr_sleep>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <113 0x2002>;
+			liteon,intr=<113>;
+			ltr,irq-gpio = <&msm_gpio 113 0x2002>;
+			vdd-supply = <&pm8916_l17>;
+			vio-supply = <&pm8916_l6>;
+			ltr,ps-threshold = <150>;
+			ltr,ps-hysteresis-threshold = <80>;
+			ltr,als-polling-time = <200>;
+		};
+		/*lenovo-sw caoyi1 add for P-sensor and L-sensor  end*/
+
+		/*lenovo-sw caoyi1 modify for G-sensor 20150508 begin*/
+		kionix@e {/*Accelerometer sensor*/
+			compatible = "kionix,kxcjk-1013";
+			reg = <0x0e>;
+			interrupt-parent = <&msm_gpio>;
+			interrupts = <115 0x2002>;
+			/*vdd-supply = <&pm8916_l17>;*/
+			vio-supply = <&pm8916_l6>;
+			kionix,min_interval = <5>;
+			kionix,poll_interval = <100>;
+			kionix,accel_direction = <3>;
+			kionix,accel_irq_use_drdy = <0>;
+			kionix,accel_res = <12>;	
+			kionix,accel_g_range = <2>;
+		};
+		/*lenovo-sw caoyi1 modify for G-sensor 20150508 end*/
+
+		/*lenovo.sw2 houdz1 add(start)*/
+		sn3193@6b {
+			compatible = "lenovo,sn3193";
+			reg = <0x6b>;
+			lenovo,en-gpio = <&msm_gpio 100 0x00>;
+			lenovo,node-name = "rgbled";
+			lenovo,test-node-name = "test-led";
+		};
+		/*lenovo.sw2 houdz1 add(end)*/
 		mpu6050@68 { /* Gyroscope and accelerometer sensor combo */
 			compatible = "invn,mpu6050";
 			reg = <0x68>;
@@ -173,7 +364,66 @@
 			ak,auto-report;
 		};
 
+		/*lenovo-sw caoyi1 add for M-sensor begin*/
+		akm@d {
+			compatible = "ak,ak09911";
+			reg = <0x0d>;
+			pinctrl-names = "default","sleep";
+			pinctrl-0 = <&default>;
+			pinctrl-1 = <&sleep>;
+			vdd-supply = <&pm8916_l17>;
+			vio-supply = <&pm8916_l6>;
+			akm,layout = <0x0>;
+			akm,gpio_rstn = <&msm_gpio 106 0x0>;
+			akm,auto-report;
+			akm,use-hrtimer;
+		};
+		/*lenovo-sw caoyi1 add for M-sensor end*/
+
+		/* brcm2079x nfc configuration for old HW<DVT2-2 */
+		nfc-nci@77 {
+		    compatible = "brcm,bcm2079x_old";
+		    reg = <0x77>;
+		    brcm,irq-gpio = <&msm_gpio 21 0x00>;
+		    brcm,pwr-gpio = <&msm_gpio 87 0x00>;
+		    brcm,wak-gpio = <&msm_gpio 114 0x00>;
+		    interrupt-parent = <&msm_gpio>;
+		    interrupts = <21 0>;
+		    vcc_i2c-supply = <&pm8916_l6>;
+		    qcom,clk-gpio = <&pm8916_gpios 2 0>;
+		    clocks = <&clock_rpm clk_bb_clk2_pin>;
+		    clock-names = "ref_clk";
+		};
 	};
+
+	gpio-leds {
+		compatible = "gpio-leds";
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_led_off>;
+
+		button-backlight {
+			gpios = <&msm_gpio 49 0>;
+			label = "button-backlight";
+			linux,default-trigger = "none";
+			default-state = "off";
+			//retain-state-suspended;
+		};
+	};
+	tlmm_pinmux: pinctrl@1000000{
+		gpio_led_pins {
+			qcom,pins = <&gp 49>;
+			qcom,num-grp-pins = <1>;
+			label = "gpio-led-pins";
+			gpio_led_off: led_off {
+				drive-strength = <2>;
+				bias-disable;
+				output-low;
+			};
+		};
+
+	};
+	
 };
 
 &blsp1_uart2 {
@@ -194,16 +444,32 @@
 };
 &spmi_bus {
 	qcom,pm8916@1 {
-		qcom,vibrator@c000 {
+		p-qcom,vibrator@c000 {
+//*modify by lixh10 for pwm control 2015-0303 start*/
+/*
 			status = "okay";
 			qcom,vib-timeout-ms = <15000>;
+			qcom,vib-vtg-level-mV = <2700>;
+*/
+			status = "okay";
+			compatible = "qcom,qpnp-vibrator";
+			reg = <0xc000 0x100>;
+			label = "vibrator";
+			qcom,vib-timeout-ms = <15000>;
 			qcom,vib-vtg-level-mV = <3100>;
+			qcom,en-gpio = <&msm_gpio 56 0x00>;
+			qcom,mode = "dtest1";
+			qcom,pwm-channel = <0>;
+			qcom,period-us = <50000>; //40
+			qcom,duty-us = <40000>;	//30
+			qcom,active-low;
+//*modify by lixh10 for pwm control 2015-0303 end*/
 		};
 	};
 
 	qcom,pm8916@0 {
 		qcom,leds@a100 {
-			status = "okay";
+			status = "disabled";
 			qcom,led_mpp_2 {
 				label = "mpp";
 				linux,name = "button-backlight";
@@ -309,6 +575,14 @@
 #include "dsi-panel-jdi-1080p-video.dtsi"
 #include "dsi-panel-hx8394d-720p-video.dtsi"
 
+#include "lenovo-tianma-dsi-panel-nt35596-1080p-video.dtsi"
+#include "lenovo-tianma-nt35596-panel-gamma-p1.dtsi"
+#include "lenovo-tianma-nt35596-panel-mode-p1.dtsi"
+
+#include "lenovo-yassy-dsi-panel-nt35596-1080p-video.dtsi"
+#include "lenovo-yassy-nt35596-panel-gamma-p1.dtsi"
+#include "lenovo-yassy-nt35596-panel-mode-p1.dtsi"
+
 &mdss_mdp {
 	qcom,mdss-pref-prim-intf = "dsi";
 };
@@ -331,9 +605,26 @@
         qcom,cont-splash-enabled;
 };
 
+
+&dsi_nt35596_tianma_1080p_video{
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,cont-splash-enabled;
+	qcom,mdss-dsi-lp11-init;
+	qcom,mdss-dsi-init-delay-us = <5000>;
+	lenovo,panel_id = <0>;
+};
+
+&dsi_nt35596_yassy_1080p_video{
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,cont-splash-enabled;
+	qcom,mdss-dsi-lp11-init;
+	qcom,mdss-dsi-init-delay-us = <5000>;
+	lenovo,panel_id = <1>;
+};
+
 &pmx_mdss {
-	qcom,num-grp-pins = <3>;
-	qcom,pins = <&gp 97>, <&gp 25>, <&gp 98>;
+	qcom,num-grp-pins = <4>;
+	qcom,pins = <&gp 102>, <&gp 97>, <&gp 25>, <&gp 98>;
 };
 
 &pmx_mdss_te {
@@ -345,13 +636,15 @@
 	pinctrl-names = "mdss_default", "mdss_sleep";
 	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
 	pinctrl-1 = <&mdss_dsi_suspend &mdss_te_suspend>;
-	qcom,dsi-pref-prim-pan = <&dsi_jdi_1080_vid>;
+	qcom,dsi-pref-prim-pan = <&dsi_nt35596_tianma_1080p_video>;
 	qcom,regulator-ldo-mode;
 	qcom,platform-regulator-settings = [00 01 01 00 20 07 00];
 
-	qcom,platform-enable-gpio = <&msm_gpio 97 0>;
 	qcom,platform-reset-gpio = <&msm_gpio 25 0>;
-	qcom,platform-bklight-en-gpio = <&msm_gpio 98 0>;
+	qcom,platform-vsp-gpio = <&msm_gpio 98 0>;
+	qcom,platform-vsn-gpio = <&msm_gpio 97 0>;
+	qcom,platform-bklight-en-gpio = <&msm_gpio 102 0>;
+	qcom,platform-te-gpio = <&msm_gpio 24 0>;
 };
 
 &mdss_dsi1 {
@@ -365,24 +658,34 @@
 		status = "disabled";
 	};
 
+/*lenovo-sw weiweij modified for charger IC ntc*/
 	mpp@a100 { /* MPP 2 */
 		/* HR LED */
-		status = "disabled";
+		status = "ok";
+		qcom,mode = <4>; /* AIN input */
+		qcom,invert = <0>; /* No Invert */
+		qcom,ain-route = <1>; /* AMUX 6 */
+		qcom,master-en = <1>;
+		qcom,src-sel = <0>; /* Function constant */
 	};
+/*lenovo-sw weiweij modified for charger IC ntc end*/
 
 	mpp@a200 { /* MPP 3 */
 		/* VREF DAC */
 		status = "disabled";
 	};
 
+/*add by lixh10 for isa pwm control 2015-03-10 start*/
 	mpp@a300 { /* MPP 4 */
-		/* Backlight PWM */
+		/* vibrator PWM */
 		qcom,mode = <1>;		/* Digital output */
 		qcom,invert = <0>;		/* Disable invert */
-		qcom,src-sel = <4>;		/* DTEST1 */
+		qcom,src-sel = <4>;		/* DTEST3 *///lixh10 change 
 		qcom,vin-sel = <0>;		/* VPH_PWR */
+		qcom,cs-out = <7>;
 		qcom,master-en = <1>;		/* Enable MPP */
 	};
+/*add by lixh10 for isa pwm control 2015-03-10 end*/
 };
 
 &pm8916_gpios {
@@ -438,4 +741,12 @@
 &apc_vreg_corner {
 		qcom,cpr-up-threshold = <0>;
 		qcom,cpr-down-threshold = <8>;
+};
+
+&usb_otg {
+	qcom,hsusb-otg-mode = <3>;
+	qcom,usbid-gpio = <&msm_gpio 110 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&usbid_default>;
+	vbus_otg-supply=<&bq2589x_otg_supply>;
 };

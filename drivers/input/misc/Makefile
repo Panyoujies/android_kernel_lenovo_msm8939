@@ -104,3 +104,12 @@ obj-$(CONFIG_SENSORS_BMI160_I2C) += bmi160_i2c.o
 ifeq ($(CONFIG_SENSORS_BMI160_I2C),y)
 	EXTRA_CFLAGS += -DBMI_USE_BASIC_I2C_FUNC
 endif
+#lenovo-sw caoyi1 add for sensor 20151207 begin
+obj-$(CONFIG_SENSORS_LTR559_LENOVO)	+= ltr559_lenovo.o
+obj-$(CONFIG_INPUT_KIONIX_ACCEL_LENOVO)	+= kionix_accel_lenovo.o
+obj-$(CONFIG_SENSORS_AKM09911_LENOVO)	+= akm09911_lenovo.o
+#lenovo-sw caoyi1 add for sensor 20151207 end
+
+#lenovo-sw chenzz3 add for fingerprint begin
+obj-$(CONFIG_FINGERPRINT_IN_QSEE) += vfsSpiDrv.o
+#lenovo-sw chenzz3 add for fingerprint end

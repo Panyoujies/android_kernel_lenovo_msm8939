@@ -231,16 +231,38 @@ static void msm_restart_prepare(const char *cmd)
 		/* Set warm reset as true when device is in dload mode
 		 *  or device doesn't boot up into recovery, bootloader or rtc.
 		 */
+		 /*lenovo-sw jixj2015.3.13 modify begin*/
+		#if 0
 		if (get_dload_mode() ||
 			((cmd != NULL && cmd[0] != '\0') &&
 			strcmp(cmd, "recovery") &&
 			strcmp(cmd, "bootloader") &&
 			strcmp(cmd, "rtc")))
+		#else
+		if (get_dload_mode() ||
+			((cmd != NULL && cmd[0] != '\0') &&
+			strcmp(cmd, "recovery") &&
+			strcmp(cmd, "bootloader") &&
+			strcmp(cmd, "testmode") &&
+			strcmp(cmd, "dloadmode") &&
+			strcmp(cmd, "rtc")))
+		#endif
+		 /*lenovo-sw jixj2015.3.13 modify end*/
 			need_warm_reset = true;
 	} else {
 		need_warm_reset = (get_dload_mode() ||
 				(cmd != NULL && cmd[0] != '\0'));
 	}
+
+    /*lenovo-sw jixj2015.3.13 add begin, shutdown menu is reboot(GlobalActions)*/
+    if ((cmd != NULL && cmd[0] != '\0') &&
+        !strcmp(cmd, "GlobalActions")) {
+        need_warm_reset = false;
+    } else if(in_panic) {
+        need_warm_reset = true;
+    }
+    pr_crit("msm_restart_prepare need_warm_reset=%d\n",need_warm_reset);
+    /*lenovo-sw jixj2015.3.13 add begin*/
 
 	/* Hard reset the PMIC unless memory contents must be maintained. */
 	if (need_warm_reset) {
@@ -262,18 +284,6 @@ static void msm_restart_prepare(const char *cmd)
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_RTC);
 			__raw_writel(0x77665503, restart_reason);
-                } else if (!strcmp(cmd, "dm-verity device corrupted")) {
-                        qpnp_pon_set_restart_reason(
-                                PON_RESTART_REASON_DMVERITY_CORRUPTED);
-                        __raw_writel(0x77665508, restart_reason);
-                } else if (!strcmp(cmd, "dm-verity enforcing")) {
-                        qpnp_pon_set_restart_reason(
-                                PON_RESTART_REASON_DMVERITY_ENFORCE);
-                        __raw_writel(0x77665509, restart_reason);
-                } else if (!strcmp(cmd, "keys clear")) {
-                        qpnp_pon_set_restart_reason(
-                                PON_RESTART_REASON_KEYS_CLEAR);
-                        __raw_writel(0x7766550a, restart_reason);
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned long code;
 			int ret;
@@ -283,6 +293,12 @@ static void msm_restart_prepare(const char *cmd)
 					     restart_reason);
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
+		/*lenovo-sw jixj 2015.3.13 add begin*/
+		} else if (!strncmp(cmd, "testmode", 8)) {
+			__raw_writel(0x77665504, restart_reason);
+		} else if (!strncmp(cmd, "dloadmode", 9)) {
+			set_dload_mode(1);
+		/*lenovo-sw jixj 2015.3.13 add end*/
 		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}

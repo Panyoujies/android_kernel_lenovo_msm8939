@@ -106,7 +106,13 @@ enum {
 	SMEM_OSS_RRCASN1_BUF1,
 	SMEM_OSS_RRCASN1_BUF2,
 	SMEM_ID_VENDOR0,
+	/* chenyb1, 2012-11-13, For amss_printk, START */
+	SMEM_DMESG = SMEM_ID_VENDOR0,
+	/* chenyb1, 2012-11-13, For amss_printk, END */
 	SMEM_ID_VENDOR1,
+	/* Tony Sun, 2014.4.2, For WIFI/BT read MAC from NV, START */
+	SMEM_ID_VENDOR_READ_NV = SMEM_ID_VENDOR1,
+   /* Tony Sun, 2014.4.2, For WIFI/BT read MAC from NV, END */
 	SMEM_ID_VENDOR2,
 	SMEM_HW_SW_BUILD_ID,
 	SMEM_SMD_BASE_ID_2,

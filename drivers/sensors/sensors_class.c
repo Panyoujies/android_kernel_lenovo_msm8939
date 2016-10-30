@@ -451,6 +451,151 @@ static ssize_t sensors_calibrate_store(struct device *dev,
 	return size;
 }
 
+/* Begin, lenovo-sw youwc1: for all sensors attr interface */
+static ssize_t sensors_ftm_raw_show(struct device *dev,
+		struct device_attribute *atte, char *buf)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	if (!strcmp(sensors_cdev->name, "light"))
+	{
+		return snprintf(buf, PAGE_SIZE, "%d\n", sensors_cdev->raw_data.light);
+	} 
+	else if (!strcmp(sensors_cdev->name, "proximity"))
+	{
+		return snprintf(buf, PAGE_SIZE, "%d\n", sensors_cdev->raw_data.proximity);
+	} 
+	else 
+	{
+		return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n", sensors_cdev->raw_data.x, 
+			sensors_cdev->raw_data.y, sensors_cdev->raw_data.z);
+	}
+}
+
+static ssize_t gsensor_calibration_x_show(struct device *dev,
+		struct device_attribute *atte, char *buf)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n", sensors_cdev->cal_result.offset_x,
+		sensors_cdev->cal_result.offset_y, sensors_cdev->cal_result.offset_z);
+}
+
+static ssize_t gsensor_calibration_x_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	ssize_t ret;
+	int cali_value;
+
+	if (sensors_cdev->sensors_calibrate == NULL) {
+		dev_err(dev, "Invalid sensor class sensors_calibrate handle\n");
+		return -EINVAL;
+	}
+
+	ret = kstrtos32(buf, 10, &cali_value);
+	if (ret)
+		return ret;
+
+	ret = sensors_cdev->sensors_calibrate(sensors_cdev, 0, cali_value);
+	if (ret)
+		return ret;
+
+	sensors_cdev->cali_result.offset_x = cali_value;
+
+	return size;
+}
+
+static ssize_t gsensor_calibration_y_show(struct device *dev,
+		struct device_attribute *atte, char *buf)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n", sensors_cdev->cal_result.offset_x,
+		sensors_cdev->cal_result.offset_y, sensors_cdev->cal_result.offset_z);
+}
+
+static ssize_t gsensor_calibration_y_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	ssize_t ret;
+	int cali_value;
+
+	if (sensors_cdev->sensors_calibrate == NULL) {
+		dev_err(dev, "Invalid sensor class sensors_calibrate handle\n");
+		return -EINVAL;
+	}
+
+	ret = kstrtos32(buf, 10, &cali_value);
+	if (ret)
+		return ret;
+
+	ret = sensors_cdev->sensors_calibrate(sensors_cdev, 1, cali_value);
+	if (ret)
+		return ret;
+
+	sensors_cdev->cali_result.offset_y = cali_value;
+
+	return size;
+}
+
+static ssize_t gsensor_calibration_z_show(struct device *dev,
+		struct device_attribute *atte, char *buf)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n", sensors_cdev->cal_result.offset_x,
+		sensors_cdev->cal_result.offset_y, sensors_cdev->cal_result.offset_z);
+}
+
+static ssize_t gsensor_calibration_z_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	ssize_t ret;
+	int cali_value;
+
+	if (sensors_cdev->sensors_calibrate == NULL) {
+		dev_err(dev, "Invalid sensor class sensors_calibrate handle\n");
+		return -EINVAL;
+	}
+
+	ret = kstrtos32(buf, 10, &cali_value);
+	if (ret)
+		return ret;
+
+	ret = sensors_cdev->sensors_calibrate(sensors_cdev, 2, cali_value);
+	if (ret)
+		return ret;
+
+	sensors_cdev->cali_result.offset_z = cali_value;
+
+	return size;
+}
+
+static ssize_t sensors_ftm_self_show(struct device *dev,
+		struct device_attribute *atte, char *buf)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	return snprintf(buf, PAGE_SIZE, "%d\n", sensors_cdev->handle);
+}
+
+static ssize_t sensors_ftm_self_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct sensors_classdev *sensors_cdev = dev_get_drvdata(dev);
+	ssize_t ret;
+
+	if (sensors_cdev->sensors_self_test == NULL) {
+		dev_err(dev, "Invalid sensor class sensors_self_test handle\n");
+		return -EINVAL;
+	}
+
+	ret = sensors_cdev->sensors_self_test(sensors_cdev);
+	if (ret)
+		return ret;
+	
+	return size;
+}
+/* End, lenovo-sw youwc1: for all sensors attr interface */
+
 static struct device_attribute sensors_class_attrs[] = {
 	__ATTR(name, 0444, sensors_name_show, NULL),
 	__ATTR(vendor, 0444, sensors_vendor_show, NULL),
@@ -475,6 +620,19 @@ static struct device_attribute sensors_class_attrs[] = {
 	__ATTR(flush, 0660, sensors_flush_show, sensors_flush_store),
 	__ATTR(calibrate, 0664, sensors_calibrate_show,
 			sensors_calibrate_store),
+	/* Begin, lenovo-sw youwc1: for all sensors attr interface */
+/*lenovo-sw caoyi1 modify 20150512 begin*/
+	__ATTR(sensor_ftm_raw, 0444, sensors_ftm_raw_show, NULL),
+/*lenovo-sw caoyi1 modify 20150512 end*/
+	__ATTR(fast_calibration_x, 0666, gsensor_calibration_x_show, 
+			gsensor_calibration_x_store),
+	__ATTR(fast_calibration_y, 0666, gsensor_calibration_y_show, 
+			gsensor_calibration_y_store),
+	__ATTR(fast_calibration_z, 0666, gsensor_calibration_z_show, 
+			gsensor_calibration_z_store),
+	__ATTR(sensor_ftm_self, 0666, sensors_ftm_self_show, 
+			sensors_ftm_self_store),
+	/* End, lenovo-sw youwc1: for all sensors attr interface */
 	__ATTR_NULL,
 };
 

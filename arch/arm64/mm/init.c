@@ -38,6 +38,10 @@
 #include <asm/sizes.h>
 #include <asm/tlb.h>
 
+//lenovo sw, yexh1, add lastkmsg feature
+#include <asm/le_rkm.h>
+//lenovo sw, yexh1, end
+
 #include "mm.h"
 
 static unsigned long phys_initrd_start __initdata = 0;
@@ -162,6 +166,13 @@ void __init arm64_memblock_init(void)
 	dma_contiguous_reserve(dma_phys_limit);
 
 	memblock_allow_resize();
+	
+//lenovo sw, yexh1, add lastkmsg feature
+#ifdef CONFIG_LENOVO_DEBUG_RKM
+	arm64_rkm_log_backup();
+#endif
+//lenovo sw, yexh1, end
+
 	memblock_dump_all();
 }
 

@@ -68,3 +68,6 @@ obj-$(CONFIG_QPNP_MISC) += qpnp-misc.o
 obj-$(CONFIG_QCOM_LIQUID_DOCK)	+= qcom_liquid_dock.o
 obj-y				+= qcom/
 obj-$(CONFIG_UID_CPUTIME) 	+= uid_cputime.o
+obj-$(CONFIG_NXP_TFA9887) += tfa9887.o
+#lenovo-sw jixj 2014.6.10 add for read nv from smem
+obj-y += lephone_nv.o

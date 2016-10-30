@@ -1284,6 +1284,10 @@ int dpm_suspend(pm_message_t state)
 	if (!error)
 		error = async_error;
 	if (error) {
+		/* lenovo.sw chenyb1 add to debug the async_error begin*/
+		printk(KERN_ERR "PM: Device async_error %d\n",async_error);
+		dump_stack();
+		/* lenovo.sw chenyb1 add to debug the async_error end*/
 		suspend_stats.failed_suspend++;
 		dpm_save_failed_step(SUSPEND_SUSPEND);
 	} else

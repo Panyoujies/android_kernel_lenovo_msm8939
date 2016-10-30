@@ -316,6 +316,49 @@ static u8 mtp_os_string[] = {
 	0
 };
 
+
+//lenovo sw, yexh1 add for mtp with Microsoft OS Descriptor
+struct mtp_ext_prop_desc_header {
+	__le32	dwLength;
+	__u16	bcdVersion;
+	__le16	wIndex;
+	__u16	wCount;
+};
+
+/* Microsoft xtended Property OS Feature Function Section */
+struct mtp_ext_prop_desc_property {
+	__le32	dwSize;
+	__le32	dwPropertyDataType;
+	__le16	wPropertyNameLength;
+	__u8	bPropertyName[8];		//MTP
+	__le32	dwPropertyDataLength;
+	__u8	bPropertyData[22];		//MTP Device
+}mtp_ext_prop_desc_property;
+
+/* MTP Extended Configuration Descriptor */
+struct {
+	struct mtp_ext_prop_desc_header	header;
+	struct mtp_ext_prop_desc_property customProp;
+} mtp_ext_prop_desc = {
+	.header = {
+		.dwLength = __constant_cpu_to_le32(sizeof(mtp_ext_prop_desc)),
+		.bcdVersion = __constant_cpu_to_le16(0x0100),
+		.wIndex = __constant_cpu_to_le16(5),
+		.wCount = __constant_cpu_to_le16(1),
+	},
+	.customProp = {
+		.dwSize = __constant_cpu_to_le32(sizeof(mtp_ext_prop_desc_property)),
+		.dwPropertyDataType = __constant_cpu_to_le32(1),
+		.wPropertyNameLength = __constant_cpu_to_le16(8),
+		.bPropertyName = {'M', 0, 'T', 0, 'P', 0, 0, 0},		//MTP
+		.dwPropertyDataLength = __constant_cpu_to_le32(22),
+		.bPropertyData = {'M', 0, 'T', 0, 'P', 0, ' ', 0, 'D', 0, 'e', 0, 'v', 0, 'i', 0, 'c', 0, 'e', 0, 0, 0},		//MTP Device
+	},
+};
+//lenovo sw, yexh1 add end
+
+
+
 /* Microsoft Extended Configuration Descriptor Header Section */
 struct mtp_ext_config_desc_header {
 	__le32	dwLength;
@@ -333,6 +376,58 @@ struct mtp_ext_config_desc_function {
 	__u8	subCompatibleID[8];
 	__u8	reserved[6];
 };
+
+//lenovo sw, yexh1 add for mtp with Microsoft OS Descriptor
+#if 1
+struct {
+	struct mtp_ext_config_desc_header	header;
+	struct mtp_ext_config_desc_function    function[4];  
+} mtp_ext_config_desc = {
+	.header = {
+		.dwLength = __constant_cpu_to_le32(sizeof(mtp_ext_config_desc)),
+		.bcdVersion = __constant_cpu_to_le16(0x0100),
+		.wIndex = __constant_cpu_to_le16(4),
+		//.bCount = __constant_cpu_to_le16(1),
+		.bCount = 0x04,
+		.reserved = { 0 },
+	},
+	.function[0] =
+	{
+	.bFirstInterfaceNumber = 0,
+	.bInterfaceCount = 1,
+	.compatibleID = { 'M', 'T', 'P', 0, 0, 0, 0, 0 },
+	.subCompatibleID = { 0 },
+	.reserved = { 0 },
+	},
+	.function[1] =
+	{
+	.bFirstInterfaceNumber = 1,
+	.bInterfaceCount = 1,
+	.compatibleID = { 0 },
+	.subCompatibleID = { 0 },
+	.reserved = { 0 },
+	},
+	.function[2] =
+	{
+	.bFirstInterfaceNumber = 2,
+	.bInterfaceCount = 1,
+	.compatibleID = { 0 },
+	.subCompatibleID = { 0 },
+	.reserved = { 0 },
+	},
+	.function[3] =
+	{
+	.bFirstInterfaceNumber = 3,
+	.bInterfaceCount = 1,
+	.compatibleID = { 0 },
+	.subCompatibleID = { 0 },
+	.reserved = { 0 },
+	},
+
+};
+#else
+//lenovo sw, yexh1 add end
+
 
 /* MTP Extended Configuration Descriptor */
 struct ext_mtp_desc {
@@ -353,7 +448,6 @@ struct ext_mtp_desc  mtp_ext_config_desc = {
 		.compatibleID = { 'M', 'T', 'P' },
 	},
 };
-
 struct ext_mtp_desc ptp_ext_config_desc = {
 	.header = {
 		.dwLength = cpu_to_le32(sizeof(mtp_ext_config_desc)),
@@ -367,6 +461,10 @@ struct ext_mtp_desc ptp_ext_config_desc = {
 		.compatibleID = { 'P', 'T', 'P' },
 	},
 };
+
+//lenovo sw, yexh1 add for mtp with Microsoft OS Descriptor
+#endif //LENOVO_MS_OS_DESCRIPTOR
+//lenovo sw, yexh1 add end
 
 struct mtp_device_status {
 	__le16	wLength;
@@ -1280,21 +1378,28 @@ static int mtp_ctrlrequest(struct usb_composite_dev *cdev,
 		if (ctrl->bRequest == 1
 				&& (ctrl->bRequestType & USB_DIR_IN)
 				&& (w_index == 4 || w_index == 5)) {
-			if (!dev->is_ptp) {
-				value = (w_length <
-						sizeof(mtp_ext_config_desc) ?
-						w_length :
-						sizeof(mtp_ext_config_desc));
-				memcpy(cdev->req->buf, &mtp_ext_config_desc,
-									value);
-			} else {
-				value = (w_length <
-						sizeof(ptp_ext_config_desc) ?
-						w_length :
-						sizeof(ptp_ext_config_desc));
-				memcpy(cdev->req->buf, &ptp_ext_config_desc,
-									value);
-			}
+//lenovo sw, yexh1 add for mtp with Microsoft OS Descriptor
+					if (w_index == 5) {
+						value = (w_length < sizeof(mtp_ext_prop_desc) ?
+						w_length : sizeof(mtp_ext_prop_desc));
+						memcpy(cdev->req->buf, &mtp_ext_prop_desc, value);
+		 			} else {   //w_index == 4
+                				unsigned desc_size = 0;
+						extern int mtp_functions_no;						
+                 				desc_size = sizeof(struct mtp_ext_config_desc_header) + 
+								mtp_functions_no * sizeof(struct mtp_ext_config_desc_function);
+
+                				mtp_ext_config_desc.header.dwLength = cpu_to_le32(desc_size);
+                				mtp_ext_config_desc.header.bCount = mtp_functions_no;
+						value = (w_length < desc_size ? w_length : desc_size);
+						memcpy(cdev->req->buf, &mtp_ext_config_desc, value);
+					}
+                       /*
+			value = (w_length < sizeof(mtp_ext_config_desc) ?
+					w_length : sizeof(mtp_ext_config_desc));
+			memcpy(cdev->req->buf, &mtp_ext_config_desc, value);
+                       */  
+//lenovo sw, yexh1 add end
 		}
 	} else if ((ctrl->bRequestType & USB_TYPE_MASK) == USB_TYPE_CLASS) {
 		DBG(cdev, "class request: %d index: %d value: %d length: %d\n",

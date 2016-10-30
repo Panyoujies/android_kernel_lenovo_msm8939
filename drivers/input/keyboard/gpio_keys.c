@@ -51,6 +51,8 @@ struct gpio_keys_drvdata {
 	struct gpio_button_data data[0];
 };
 
+static int onekey_last_state;
+
 /*
  * SYSFS interface for enabling/disabling keys and switches:
  *
@@ -305,18 +307,34 @@ ATTR_STORE_FN(disabled_switches, EV_SW);
  * /sys/devices/platform/gpio-keys/disabled_keys [rw]
  * /sys/devices/platform/gpio-keys/disables_switches [rw]
  */
+/*add by lixh10 change for one key low power 2015-3-11 start */
+static ssize_t switch_onekey_state_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int state ;
+	state = gpio_get_value_cansleep(922) ;
+
+	return snprintf(buf, PAGE_SIZE, "%d\n",state);
+}
+/*add by lixh10 change for one key low power 2015-3-11 end */
 static DEVICE_ATTR(disabled_keys, S_IWUSR | S_IRUGO,
 		   gpio_keys_show_disabled_keys,
 		   gpio_keys_store_disabled_keys);
 static DEVICE_ATTR(disabled_switches, S_IWUSR | S_IRUGO,
 		   gpio_keys_show_disabled_switches,
 		   gpio_keys_store_disabled_switches);
+/*add by lixh10 change for one key low power 2015-3-11 start */
+static DEVICE_ATTR(onekeypowerdown, S_IWUSR | S_IRUGO,
+		 switch_onekey_state_show, NULL);
+/*add by lixh10 change for one key low power 2015-3-11 end */
 
 static struct attribute *gpio_keys_attrs[] = {
 	&dev_attr_keys.attr,
 	&dev_attr_switches.attr,
 	&dev_attr_disabled_keys.attr,
 	&dev_attr_disabled_switches.attr,
+/*add by lixh10 change for one key low power 2015-3-11 start */
+	&dev_attr_onekeypowerdown.attr,
+/*add by lixh10 change for one key low power 2015-3-11 end */
 	NULL,
 };
 
@@ -335,7 +353,28 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 		if (state)
 			input_event(input, type, button->code, button->value);
 	} else {
-		input_event(input, type, button->code, !!state);
+/*add by lixh10 change for one key low power 2015-3-11 start */
+		if(button->code == KEY_ONEKEY_UP){
+			if(onekey_last_state!=state){
+				if(state){
+					printk("ahe gpio_key code :  (%d,%d) \n",KEY_ONEKEY_UP,state);
+					input_event(input, EV_KEY, KEY_ONEKEY_UP, !!state);
+					input_sync(input);
+					input_event(input, EV_KEY, KEY_ONEKEY_UP, !state);
+				}else{
+					printk("ahe gpio_key code :  (%d,%d) \n",KEY_ONEKEY_DOWM,state);
+					input_event(input, EV_KEY, KEY_ONEKEY_DOWM, !state);
+					input_sync(input);
+					input_event(input, EV_KEY, KEY_ONEKEY_DOWM, !!state);
+				}
+				onekey_last_state=state;
+			}
+		}else{
+			input_event(input, type, button->code, !!state);
+			printk("ahe gpio_key code :  (%d,%d) \n",button->code,state);
+		}
+
+/*add by lixh10 change for one key low power 2015-3-11 end */
 	}
 	input_sync(input);
 }
@@ -344,7 +383,6 @@ static void gpio_keys_gpio_work_func(struct work_struct *work)
 {
 	struct gpio_button_data *bdata =
 		container_of(work, struct gpio_button_data, work);
-
 	gpio_keys_gpio_report_event(bdata);
 
 	if (bdata->button->wakeup)
@@ -354,7 +392,6 @@ static void gpio_keys_gpio_work_func(struct work_struct *work)
 static void gpio_keys_gpio_timer(unsigned long _data)
 {
 	struct gpio_button_data *bdata = (struct gpio_button_data *)_data;
-
 	schedule_work(&bdata->work);
 }
 
@@ -363,7 +400,6 @@ static irqreturn_t gpio_keys_gpio_isr(int irq, void *dev_id)
 	struct gpio_button_data *bdata = dev_id;
 
 	BUG_ON(irq != bdata->irq);
-
 	if (bdata->button->wakeup)
 		pm_stay_awake(bdata->input->dev.parent);
 	if (bdata->timer_debounce)
@@ -494,8 +530,15 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 		isr = gpio_keys_irq_isr;
 		irqflags = 0;
 	}
-
+/*add by lixh10 change for one key low power 2015-3-11 start */
+	if(button->code==KEY_ONEKEY_UP){
+		input_set_capability(input, EV_KEY, KEY_ONEKEY_DOWM);
+		input_set_capability(input, EV_KEY, KEY_ONEKEY_UP);
+		onekey_last_state = (gpio_get_value_cansleep(button->gpio) ? 1 : 0) ^ button->active_low;
+		}else{
+/*add by lixh10 change for one key low power 2015-3-11 end */
 	input_set_capability(input, button->type ?: EV_KEY, button->code);
+			}
 
 	/*
 	 * If platform has specified that the button can be disabled,
@@ -524,7 +567,6 @@ static void gpio_keys_report_state(struct gpio_keys_drvdata *ddata)
 {
 	struct input_dev *input = ddata->input;
 	int i;
-
 	for (i = 0; i < ddata->pdata->nbuttons; i++) {
 		struct gpio_button_data *bdata = &ddata->data[i];
 		if (gpio_is_valid(bdata->button->gpio))
@@ -579,7 +621,6 @@ static int gpio_keys_open(struct input_dev *input)
 		if (error)
 			return error;
 	}
-
 	/* Report current state of buttons that are connected to GPIOs */
 	gpio_keys_report_state(ddata);
 
@@ -665,12 +706,12 @@ gpio_keys_get_devtree_pdata(struct device *dev)
 		button->active_low = flags & OF_GPIO_ACTIVE_LOW;
 
 		if (of_property_read_u32(pp, "linux,code", &button->code)) {
-			dev_err(dev, "Button without keycode: 0x%x\n",
+			dev_err(dev, "  Button without keycode: 0x%x\n",
 				button->gpio);
 			error = -EINVAL;
 			goto err_free_pdata;
 		}
-
+		dev_err(dev,"ahe key code : (%d,%d)\n",button->code,button->gpio);
 		button->desc = of_get_property(pp, "label", NULL);
 
 		if (of_property_read_u32(pp, "linux,input-type", &button->type))
@@ -802,14 +843,21 @@ static int gpio_keys_probe(struct platform_device *pdev)
 
 	error = sysfs_create_group(&pdev->dev.kobj, &gpio_keys_attr_group);
 	if (error) {
-		dev_err(dev, "Unable to export keys/switches, error: %d\n",
+		dev_err(dev, "ahe Unable to export keys/switches, error: %d\n",
 			error);
 		goto fail2;
 	}
 
+	
+	if (sysfs_create_link(NULL, &pdev->dev.kobj, "onekeylowpower")) {
+		dev_err(dev, "failed to create sysfs symlink\n");
+		goto fail2;
+	}
+
+
 	error = input_register_device(input);
 	if (error) {
-		dev_err(dev, "Unable to register input device, error: %d\n",
+		dev_err(dev, " Unable to register input device, error: %d\n",
 			error);
 		goto fail3;
 	}
@@ -930,7 +978,6 @@ static int gpio_keys_resume(struct device *dev)
 
 	if (error)
 		return error;
-
 	gpio_keys_report_state(ddata);
 	return 0;
 }

@@ -120,6 +120,7 @@ enum msm_camera_vreg_name_t {
 	CAM_VAF,
 	CAM_V_CUSTOM1,
 	CAM_V_CUSTOM2,
+	CAM_VAF_F,
 	CAM_VREG_MAX,
 };
 
@@ -153,6 +154,10 @@ enum msm_actuator_addr_type {
 enum msm_actuator_write_type {
 	MSM_ACTUATOR_WRITE_HW_DAMP,
 	MSM_ACTUATOR_WRITE_DAC,
+/*+begin xujt1 Add DW driver IC 2014-06-25*/
+	MSM_ACTUATOR_WRITE_DAC_DW9718S,
+	MSM_ACTUATOR_WRITE_DAC_DW9761B,
+/*+end xujt1 Add DW driver IC 2014-06-25*/
 };
 
 enum msm_actuator_i2c_operation {

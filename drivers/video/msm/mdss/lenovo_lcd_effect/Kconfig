@@ -1,0 +1,13 @@
+config FB_LENOVO_LCM_EFFECT_CABC_INVERSE
+	depends on FB_LENOVO_LCM_EFFECT
+	bool "lenovo lcm effect setting for cabc/inverse"
+	default n
+	---help---
+	The function provides support set lcm effect.
+
+config FB_LENOVO_LCM_EFFECT_UI
+	depends on FB_LENOVO_LCM_EFFECT
+	bool "lenovo lcm effect setting for UI"
+	default n
+	---help---
+	The function provides support set lcm effect.

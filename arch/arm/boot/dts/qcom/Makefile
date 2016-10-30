@@ -73,10 +73,7 @@ dtb-$(CONFIG_ARCH_MSM8909) += msm8909-sim.dtb \
 	apq8009w-cdp.dtb \
 	apq8009-mtp-wcd9326.dtb \
 	msm8909-mtp-wcd9326.dtb \
-	msm8909-mtp-wcd9326-refboard.dtb \
-	msm8909-512mb-mtp-wcd9326-refboard.dtb \
-	apq8009-mtp-wcd9326-refboard.dtb \
-	apq8009-512mb-mtp-wcd9326-refboard.dtb
+	msm8909-mtp-wcd9326-refboard.dtb
 
 dtb-$(CONFIG_ARCH_MSM8916) += msm8916-cdp.dtb \
 	msm8916-cdp-smb1360.dtb \
@@ -108,23 +105,7 @@ dtb-$(CONFIG_ARCH_MSM8916) += msm8916-cdp.dtb \
 	msm8939-v3.0-mtp.dtb \
 	msm8939-v3.0-mtp-jdi.dtb \
 	msm8939-v3.0-mtp-smb1360.dtb \
-	msm8939-v3.0-mtp-wcd9306.dtb \
-	msm8936-qrd-skuk.dtb \
-	msm8936-cdp.dtb \
-	msm8936-cdp-smb1360.dtb \
-	msm8936-mtp.dtb \
-	msm8936-mtp-smb1360.dtb \
-	msm8936-mtp-wcd9306.dtb \
-	msmtellurium-sim.dtb \
-	msmtellurium-rumi.dtb \
-	msm8929-cdp.dtb \
-	msm8929-mtp.dtb \
-	msm8929-mtp-smb1360.dtb \
-	msm8929-mtp-jdi-smb1360.dtb \
-	msm8929-mtp-wcd9306-smb1360.dtb \
-	msm8929-qrd-skul.dtb \
-	msm8929-qrd-skulb.dtb \
-	msm8929-cdp-jdi.dtb
+	msm8939-v3.0-mtp-wcd9306.dtb
 dtb-$(CONFIG_ARCH_MSM8226) += msm8226-sim.dtb \
 	msm8226-fluid.dtb \
 	msm8226-v1-cdp.dtb \

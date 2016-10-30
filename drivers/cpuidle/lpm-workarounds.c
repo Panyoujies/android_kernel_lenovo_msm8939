@@ -146,12 +146,24 @@ static ssize_t store_clock_gating_enabled(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int ret = 0, val = 0;
+	/* chenyb1 add to fix cluster1 die begin */
+	static int val_old = 0;
+	/* chenyb1 add to fix cluster1 die end */
 
 	ret = kstrtoint(buf, 10, &val);
 	if (ret || !enable_dynamic_clock_gating) {
 		pr_err("Invalid input%s %s. err:%d\n", __func__, buf, ret);
 		return count;
 	}
+	/* chenyb1 add to fix cluster1 die begin */
+	if (val == val_old)
+	{
+		pr_err("Invalid input%s %s. duplicate.val=%d,val_old=%d\n", __func__, buf, val, val_old);
+		return count;
+	}
+	val_old = val;
+	/* chenyb1 add to fix cluster1 die end */
+    
 	cpumask_copy(&curr_req.offline_mask, &l1_l2_offline_mask);
 	ret = devmgr_client_request_mitigation(
 			hotplug_handle,

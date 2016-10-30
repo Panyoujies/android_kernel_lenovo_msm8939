@@ -140,6 +140,26 @@ static char bus_clkname[USB_NUM_BUS_CLOCKS][20] = {"bimc_clk", "snoc_clk",
 						"pcnoc_clk"};
 static bool bus_clk_rate_set;
 
+/*lenovo-sw weiweij added for usb otg state*/
+static int otg_cable_state = 0;
+/*lenovo-sw weiweij added for usb otg state end*/
+
+/*lenovo-sw weiweij added for fast charger*/
+extern void charger_set_ibat_max(int ibat_max);
+extern void charger_set_iusb_max(int ibat_max);
+
+extern int start_fast_charger_hs(int cmd);
+/*lenovo-sw weiweij added for fast charger end*/
+
+/*lenovo-sw weiweij added for charging current set work*/
+struct delayed_work charging_current_set_work;
+
+static void charging_current_set_worker(struct work_struct *work)
+{
+	charger_set_iusb_max(500);	
+}
+/*lenovo-sw weiweij added for charging current set work end*/
+
 static void
 msm_otg_dbg_log_event(struct usb_phy *phy, char *event, int d1, int d2)
 {
@@ -1854,6 +1874,8 @@ static void msm_otg_notify_host_mode(struct msm_otg *motg, bool host_mode)
 	}
 }
 
+
+
 static int msm_otg_notify_chg_type(struct msm_otg *motg)
 {
 	static int charger_type;
@@ -1880,6 +1902,22 @@ static int msm_otg_notify_chg_type(struct msm_otg *motg)
 		charger_type = POWER_SUPPLY_TYPE_USB_ACA;
 	else
 		charger_type = POWER_SUPPLY_TYPE_UNKNOWN;
+
+/*lenovo-sw weiweij added for fast charger*/
+	pr_info("phy-msm-usb charger_type %d\n", charger_type);
+
+	if(charger_type == POWER_SUPPLY_TYPE_UNKNOWN)
+	{		
+		//charger_set_iusb_max(500);		
+		schedule_delayed_work(&charging_current_set_work, 0);	
+	}
+	
+	if(charger_type == POWER_SUPPLY_TYPE_USB_DCP)
+		start_fast_charger_hs(1);
+	else {		
+		start_fast_charger_hs(0);
+	}
+/*lenovo-sw weiweij added for fast charger end*/
 
 	if (!psy) {
 		pr_err("No USB power supply registered!\n");
@@ -1969,8 +2007,11 @@ static void msm_otg_notify_charger(struct msm_otg *motg, unsigned mA)
 
 	if (motg->cur_power == mA)
 		return;
+		
+/*lenovo-sw weiweij modified for debug msg*/
+	dev_info(motg->phy.dev, "Avail curr from USB = %u(%d)\n", mA, motg->chg_type);
+/*lenovo-sw weiweij modified for debug msg end*/
 
-	dev_info(motg->phy.dev, "Avail curr from USB = %u\n", mA);
 	msm_otg_dbg_log_event(&motg->phy, "AVAIL CURR FROM USB",
 			mA, motg->chg_type);
 
@@ -2151,6 +2192,9 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 			return;
 		}
 		vbus_is_on = true;
+/*lenovo-sw weiweij added for usb otg state*/
+		otg_cable_state = 1;
+/*lenovo-sw weiweij added for usb otg state end*/				
 	} else {
 		ret = regulator_disable(vbus_otg);
 		if (ret) {
@@ -2159,7 +2203,23 @@ static void msm_hsusb_vbus_power(struct msm_otg *motg, bool on)
 		}
 		msm_otg_notify_host_mode(motg, on);
 		vbus_is_on = false;
+/*lenovo-sw weiweij added for usb otg state*/
+		otg_cable_state = 0;
+/*lenovo-sw weiweij added for usb otg state end*/				
 	}
+
+/*lenovo-sw weiweij added for usb otg state*/
+	{
+		static int pre_state = -1;
+
+		pr_info("otg cable state %d(%d)\n", otg_cable_state, pre_state);
+		if(pre_state!=otg_cable_state)
+		{
+			power_supply_changed(&motg->usb_psy);		
+			pre_state = otg_cable_state;
+		}
+	}
+/*lenovo-sw weiweij added for usb otg state end*/				
 }
 
 static int msm_otg_set_host(struct usb_otg *otg, struct usb_bus *host)
@@ -4007,12 +4067,16 @@ static irqreturn_t msm_otg_irq(int irq, void *data)
 
 	if ((otgsc & OTGSC_IDIS) && (otgsc & OTGSC_IDIE)) {
 		if (otgsc & OTGSC_ID) {
-			dev_dbg(otg->phy->dev, "ID set\n");
+			/*lenovo-sw weiweij modified debug message to dev info*/
+			dev_info(otg->phy->dev, "%s ID set\n", __func__);
+			/*lenovo-sw weiweij modified debug message to dev info end*/
 			msm_otg_dbg_log_event(&motg->phy, "ID SET",
 				motg->inputs, otg->phy->state);
 			set_bit(ID, &motg->inputs);
 		} else {
-			dev_dbg(otg->phy->dev, "ID clear\n");
+			/*lenovo-sw weiweij modified debug message to dev info*/
+			dev_info(otg->phy->dev, "%s ID clear\n", __func__);
+			/*lenovo-sw weiweij modified debug message to dev info end*/
 			msm_otg_dbg_log_event(&motg->phy, "ID CLEAR",
 					motg->inputs, otg->phy->state);
 			/*
@@ -4243,7 +4307,9 @@ static void msm_id_status_w(struct work_struct *w)
 		if (gpio_is_valid(motg->pdata->switch_sel_gpio))
 			gpio_direction_input(motg->pdata->switch_sel_gpio);
 		if (!test_and_set_bit(ID, &motg->inputs)) {
-			pr_debug("ID set\n");
+			/*lenovo-sw weiweij modified debug message to dev info*/
+			pr_info("%s ID set\n", __func__);
+			/*lenovo-sw weiweij modified debug message to dev info end*/
 			msm_otg_dbg_log_event(&motg->phy, "ID SET",
 					motg->inputs, motg->phy.state);
 			work = 1;
@@ -4252,7 +4318,9 @@ static void msm_id_status_w(struct work_struct *w)
 		if (gpio_is_valid(motg->pdata->switch_sel_gpio))
 			gpio_direction_output(motg->pdata->switch_sel_gpio, 1);
 		if (test_and_clear_bit(ID, &motg->inputs)) {
-			pr_debug("ID clear\n");
+			/*lenovo-sw weiweij modified debug message to dev info*/
+			pr_info("%s ID clear\n", __func__);
+			/*lenovo-sw weiweij modified debug message to dev info end*/
 			msm_otg_dbg_log_event(&motg->phy, "ID CLEAR",
 					motg->inputs, motg->phy.state);
 			set_bit(A_BUS_REQ, &motg->inputs);
@@ -4643,7 +4711,14 @@ static int otg_power_get_property_usb(struct power_supply *psy,
 		break;
 	/* Reflect USB enumeration */
 	case POWER_SUPPLY_PROP_ONLINE:
+//lenovo sw yexh1, add for support usb charging only function
+		if(otg_cable_state)
 		val->intval = motg->online;
+		else
+       			 val->intval = !!test_bit(B_SESS_VLD, &motg->inputs);
+		
+		pr_info("usb online status %d\n", val->intval);		
+//lenovo sw yexh1, end
 		break;
 	case POWER_SUPPLY_PROP_TYPE:
 		val->intval = psy->type;
@@ -4654,6 +4729,12 @@ static int otg_power_get_property_usb(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = otg_get_prop_usbin_voltage_now(motg);
 		break;
+/*lenovo-sw weiweij added for usb otg state*/
+	case POWER_SUPPLY_PROP_STATUS:
+		pr_info("otg get prop status %d\n", otg_cable_state);
+		val->intval = otg_cable_state;
+		break;		
+/*lenovo-sw weiweij added for usb otg state end*/		
 	default:
 		return -EINVAL;
 	}
@@ -4780,6 +4861,9 @@ static enum power_supply_property otg_pm_power_props_usb[] = {
 	POWER_SUPPLY_PROP_TYPE,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_DP_DM,
+/*lenovo-sw weiweij added for usb otg state*/	
+	POWER_SUPPLY_PROP_STATUS,
+/*lenovo-sw weiweij added for usb otg state end*/	
 };
 
 const struct file_operations msm_otg_bus_fops = {
@@ -5994,6 +6078,10 @@ static int msm_otg_probe(struct platform_device *pdev)
 			goto remove_cdev;
 		}
 	}
+
+/*lenovo-sw weiweij added for charging current set work*/
+	INIT_DELAYED_WORK(&charging_current_set_work, charging_current_set_worker);
+/*lenovo-sw weiweij added for charging current set work end*/
 
 	init_waitqueue_head(&motg->host_suspend_wait);
 	motg->pm_notify.notifier_call = msm_otg_pm_notify;
